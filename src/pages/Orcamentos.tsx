@@ -3,19 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockOrcamentos, mockSolicitacoes } from '@/data/mockData';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, Calendar, CheckCircle, Star } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, DollarSign, Calendar, CheckCircle, Star, Filter } from 'lucide-react';
 import { Orcamento } from '@/types';
 
 const Orcamentos = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSolicitacaoId, setSelectedSolicitacaoId] = useState('');
   const [orcamentos] = useState<Orcamento[]>(mockOrcamentos);
 
-  const filteredOrcamentos = orcamentos.filter(
-    (orcamento) =>
+  const filteredOrcamentos = orcamentos.filter((orcamento) => {
+    if (selectedSolicitacaoId && orcamento.solicitacaoId !== selectedSolicitacaoId) {
+      return false;
+    }
+    
+    if (!searchTerm) return true;
+    
+    return (
       orcamento.prestador.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       getSolicitacaoInfo(orcamento.solicitacaoId)?.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    );
+  });
+
+  const selectedSolicitacao = selectedSolicitacaoId 
+    ? getSolicitacaoInfo(selectedSolicitacaoId) 
+    : null;
 
   function getSolicitacaoInfo(solicitacaoId: string) {
     return mockSolicitacoes.find(s => s.id === solicitacaoId);
@@ -37,25 +50,73 @@ const Orcamentos = () => {
         </Button>
       </div>
 
-      {/* Search */}
+      {/* Filters */}
       <div className="flex gap-4">
+        <div className="flex-1">
+          <Select value={selectedSolicitacaoId} onValueChange={setSelectedSolicitacaoId}>
+            <SelectTrigger className="w-full">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                <SelectValue placeholder="Selecione uma solicitação para filtrar..." />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas as solicitações</SelectItem>
+              {mockSolicitacoes.map((solicitacao) => (
+                <SelectItem key={solicitacao.id} value={solicitacao.id}>
+                  Imóvel: {solicitacao.imovelId} • {solicitacao.tipoManutencao} • {solicitacao.endereco}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por prestador ou tipo de manutenção..."
+            placeholder="Buscar por prestador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
+            disabled={!selectedSolicitacaoId}
           />
         </div>
       </div>
 
+      {/* Selected Solicitation Info */}
+      {selectedSolicitacao && (
+        <Card className="bg-muted/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-foreground">{selectedSolicitacao.tipoManutencao}</h3>
+                <p className="text-sm text-muted-foreground">
+                  Imóvel: {selectedSolicitacao.imovelId} • {selectedSolicitacao.endereco}
+                </p>
+              </div>
+              <Badge variant="secondary">
+                {orcamentos.filter(o => o.solicitacaoId === selectedSolicitacaoId).length} orçamento(s)
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Orçamentos List */}
       <div className="space-y-4">
-        {filteredOrcamentos.length === 0 ? (
+        {!selectedSolicitacaoId ? (
           <Card>
             <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground">Nenhum orçamento encontrado.</p>
+              <Filter className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground text-lg">Selecione uma solicitação para ver os orçamentos</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Use o filtro acima para escolher uma solicitação específica
+              </p>
+            </CardContent>
+          </Card>
+        ) : filteredOrcamentos.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">Nenhum orçamento encontrado para esta solicitação.</p>
             </CardContent>
           </Card>
         ) : (
@@ -76,7 +137,7 @@ const Orcamentos = () => {
                         )}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Prestador: {orcamento.prestador.nome} • ID: {solicitacao?.imovelId}
+                        Prestador: {orcamento.prestador.nome} • Imóvel: {solicitacao?.imovelId}
                       </p>
                     </div>
                     <div className="flex gap-2">

@@ -117,80 +117,39 @@ const Dashboard = () => {
       </div>
 
       {/* Recent Requests */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Solicitações Pendentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mockSolicitacoes
-                .filter(s => s.status !== 'concluida')
-                .slice(0, 5)
-                .map((solicitacao) => (
-                  <div
-                    key={solicitacao.id}
-                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {solicitacao.tipoManutencao}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {solicitacao.endereco}
-                      </p>
-                    </div>
-                    <Badge variant={getStatusColor(solicitacao.status) as any}>
-                      {getStatusLabel(solicitacao.status)}
-                    </Badge>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            Solicitações Pendentes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {mockSolicitacoes
+              .filter(s => s.status !== 'concluida')
+              .slice(0, 5)
+              .map((solicitacao) => (
+                <div
+                  key={solicitacao.id}
+                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {solicitacao.tipoManutencao}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {solicitacao.endereco}
+                    </p>
                   </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Resumo Financeiro
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Mão de Obra</span>
-                <span className="text-sm font-medium text-foreground">
-                  R$ {mockOrcamentos.reduce((acc, orc) => acc + orc.maoDeObra, 0).toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Materiais</span>
-                <span className="text-sm font-medium text-foreground">
-                  R$ {mockOrcamentos.reduce((acc, orc) => acc + orc.materiais, 0).toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Taxa Admin</span>
-                <span className="text-sm font-medium text-foreground">
-                  R$ {mockOrcamentos.reduce((acc, orc) => acc + (orc.maoDeObra + orc.materiais) * (orc.taxaAdm / 100), 0).toFixed(2)}
-                </span>
-              </div>
-              <div className="border-t pt-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-foreground">Total</span>
-                  <span className="text-sm font-bold text-primary">
-                    R$ {totalOrcamentos.toFixed(2)}
-                  </span>
+                  <Badge variant={getStatusColor(solicitacao.status) as any}>
+                    {getStatusLabel(solicitacao.status)}
+                  </Badge>
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
