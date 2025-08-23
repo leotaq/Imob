@@ -1,0 +1,54 @@
+export interface Solicitacao {
+  id: string;
+  imovelId: string;
+  tipoSolicitante: 'inquilino' | 'proprietario' | 'imobiliaria' | 'terceiros';
+  nome: string;
+  telefone: string;
+  endereco: string;
+  tipoManutencao: string;
+  dataSolicitacao: Date;
+  prazoFinal: Date;
+  descricao: string;
+  status: 'aberta' | 'orcamento' | 'aprovada' | 'execucao' | 'concluida' | 'cancelada';
+}
+
+export interface Prestador {
+  id: string;
+  nome: string;
+  contato: string;
+  tipoPagamento: 'pix' | 'transferencia' | 'dinheiro' | 'cartao';
+  notaRecibo: 'nota' | 'recibo';
+}
+
+export interface Orcamento {
+  id: string;
+  solicitacaoId: string;
+  prestador: Prestador;
+  maoDeObra: number;
+  materiais: number;
+  taxaAdm: number; // percentual
+  prazoExecucao: number; // em dias
+  total: number;
+  isPrincipal: boolean;
+  dataOrcamento: Date;
+}
+
+export interface Execucao {
+  id: string;
+  solicitacaoId: string;
+  orcamentoId: string;
+  status: 'aberta' | 'andamento' | 'concluida';
+  dataInicio?: Date;
+  dataFinalizacao?: Date;
+  observacoes: string;
+}
+
+export interface HistoricoStatus {
+  id: string;
+  solicitacaoId: string;
+  statusAnterior: string;
+  statusNovo: string;
+  data: Date;
+  usuario: string;
+  observacao: string;
+}
