@@ -5,6 +5,7 @@ export interface Solicitacao {
   nome: string;
   telefone: string;
   endereco: string;
+  cidade: string;
   tipoManutencao: string;
   dataSolicitacao: Date;
   prazoFinal: Date;
@@ -16,6 +17,8 @@ export interface Prestador {
   id: string;
   nome: string;
   contato: string;
+  tipoPessoa: 'cpf' | 'cnpj';
+  documento: string; // CPF ou CNPJ
   tipoPagamento: 'pix' | 'transferencia' | 'dinheiro' | 'cartao';
   notaRecibo: 'nota' | 'recibo';
 }

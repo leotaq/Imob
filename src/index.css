@@ -1,3 +1,17 @@
+@layer base {
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background-color: hsl(217.2 32.6% 17.5%) !important;
+    color: hsl(210 40% 98%) !important;
+    border-color: hsl(217.2 32.6% 17.5%);
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: hsl(215 20.2% 65.1%) !important;
+    opacity: 1;
+  }
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

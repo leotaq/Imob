@@ -18,7 +18,7 @@ app.get('/api/usuarios', autenticarToken, async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany({
       where: { empresaId: req.usuario.empresaId },
-      select: { id: true, nome: true, email: true }
+      select: { id: true, nome: true, email: true, isAdmin: true }
     });
     res.json({ usuarios });
   } catch (err) {

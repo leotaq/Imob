@@ -1,4 +1,87 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+
+// Formulário de edição de solicitação (deve ficar fora do componente principal)
+function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
+  const [form, setForm] = React.useState({
+    ...solicitacao,
+    prazoFinal: solicitacao.prazoFinal instanceof Date ? solicitacao.prazoFinal.toISOString().slice(0,10) : solicitacao.prazoFinal,
+    dataSolicitacao: solicitacao.dataSolicitacao instanceof Date ? solicitacao.dataSolicitacao.toISOString().slice(0,10) : solicitacao.dataSolicitacao
+  });
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+  }
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSave({
+      ...form,
+      prazoFinal: new Date(form.prazoFinal),
+      dataSolicitacao: new Date(form.dataSolicitacao),
+    });
+  }
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">ID do Imóvel *</label>
+          <input name="imovelId" className="w-full border rounded px-2 py-1" value={form.imovelId} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Tipo de Solicitante *</label>
+          <select name="tipoSolicitante" className="w-full border rounded px-2 py-1" value={form.tipoSolicitante} onChange={handleChange} required>
+            <option value="inquilino">Inquilino</option>
+            <option value="proprietario">Proprietário</option>
+            <option value="imobiliaria">Imobiliária</option>
+            <option value="terceiros">Terceiros</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Nome *</label>
+          <input name="nome" className="w-full border rounded px-2 py-1" value={form.nome} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Telefone *</label>
+          <input name="telefone" className="w-full border rounded px-2 py-1" value={form.telefone} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Endereço *</label>
+          <input name="endereco" className="w-full border rounded px-2 py-1" value={form.endereco} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Cidade *</label>
+          <input name="cidade" className="w-full border rounded px-2 py-1" value={form.cidade} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Tipo de Manutenção *</label>
+          <input name="tipoManutencao" className="w-full border rounded px-2 py-1" value={form.tipoManutencao} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Prazo Final *</label>
+          <input name="prazoFinal" type="date" className="w-full border rounded px-2 py-1" value={form.prazoFinal} onChange={handleChange} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Status *</label>
+          <select name="status" className="w-full border rounded px-2 py-1" value={form.status} onChange={handleChange} required>
+            <option value="aberta">Aberta</option>
+            <option value="orcamento">Orçamento</option>
+            <option value="aprovada">Aprovada</option>
+            <option value="execucao">Em Execução</option>
+            <option value="concluida">Concluída</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Descrição</label>
+        <textarea name="descricao" className="w-full border rounded px-2 py-1" value={form.descricao} onChange={handleChange} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button type="submit">Salvar</Button>
+      </div>
+    </form>
+  );
+}
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +138,7 @@ const solicitacaoSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
   telefone: z.string().min(1, 'Telefone é obrigatório'),
   endereco: z.string().min(1, 'Endereço é obrigatório'),
+  cidade: z.string().min(1, 'Cidade é obrigatória'),
   tipoManutencao: z.string().min(1, 'Tipo de manutenção é obrigatório'),
   prazoFinal: z.string().min(1, 'Prazo final é obrigatório'),
   descricao: z.string().optional(),
@@ -65,6 +149,10 @@ type SolicitacaoFormData = z.infer<typeof solicitacaoSchema>;
 const Solicitacoes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>(mockSolicitacoes);
+  const [selectedSolicitacao, setSelectedSolicitacao] = useState<Solicitacao | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -75,10 +163,11 @@ const Solicitacoes = () => {
       tipoSolicitante: 'inquilino',
       nome: '',
       telefone: '',
-      endereco: '',
-      tipoManutencao: '',
-      prazoFinal: '',
-      descricao: '',
+  endereco: '',
+  cidade: '',
+  tipoManutencao: '',
+  prazoFinal: '',
+  descricao: '',
     },
   });
 
@@ -97,7 +186,8 @@ const Solicitacoes = () => {
       tipoSolicitante: data.tipoSolicitante,
       nome: data.nome,
       telefone: data.telefone,
-      endereco: data.endereco,
+  endereco: data.endereco,
+  cidade: data.cidade,
       tipoManutencao: data.tipoManutencao,
       dataSolicitacao: new Date(),
       prazoFinal: new Date(data.prazoFinal),
@@ -215,6 +305,19 @@ const Solicitacoes = () => {
                   />
                   <FormField
                     control={form.control}
+                    name="cidade"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cidade *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Cidade" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="tipoManutencao"
                     render={({ field }) => (
                       <FormItem>
@@ -309,15 +412,80 @@ const Solicitacoes = () => {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setViewDialogOpen(true); }}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setEditDialogOpen(true); }}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setDeleteDialogOpen(true); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+      {/* Modal Visualizar Solicitação */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+  <DialogContent className="max-w-lg" overlayTransparent={true}>
+          <DialogHeader>
+            <DialogTitle>Detalhes da Solicitação</DialogTitle>
+          </DialogHeader>
+          {selectedSolicitacao && (
+            <div className="space-y-2">
+              <div><b>Imóvel:</b> {selectedSolicitacao.imovelId}</div>
+              <div><b>Tipo de Manutenção:</b> {selectedSolicitacao.tipoManutencao}</div>
+              <div><b>Solicitante:</b> {selectedSolicitacao.nome} ({getTipoSolicitanteLabel(selectedSolicitacao.tipoSolicitante)})</div>
+              <div><b>Telefone:</b> {selectedSolicitacao.telefone}</div>
+              <div><b>Endereço:</b> {selectedSolicitacao.endereco}</div>
+              <div><b>Cidade:</b> {selectedSolicitacao.cidade}</div>
+              <div><b>Status:</b> {getStatusLabel(selectedSolicitacao.status)}</div>
+              <div><b>Data Solicitação:</b> {selectedSolicitacao.dataSolicitacao.toLocaleDateString('pt-BR')}</div>
+              <div><b>Prazo Final:</b> {selectedSolicitacao.prazoFinal.toLocaleDateString('pt-BR')}</div>
+              <div><b>Descrição:</b> {selectedSolicitacao.descricao}</div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+
+      {/* Modal Editar Solicitação (completo) */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl" overlayTransparent={true}>
+          <DialogHeader>
+            <DialogTitle>Editar Solicitação</DialogTitle>
+          </DialogHeader>
+          {selectedSolicitacao && (
+            <EditSolicitacaoForm
+              solicitacao={selectedSolicitacao}
+              onCancel={() => setEditDialogOpen(false)}
+              onSave={(updated) => {
+                setSolicitacoes((prev) => prev.map(s => s.id === updated.id ? updated : s));
+                setEditDialogOpen(false);
+                setSelectedSolicitacao(updated);
+                toast({ title: 'Solicitação atualizada!' });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+
+
+      {/* Modal Excluir Solicitação */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+  <DialogContent className="max-w-sm" overlayTransparent={true}>
+          <DialogHeader>
+            <DialogTitle>Excluir Solicitação</DialogTitle>
+          </DialogHeader>
+          <div className="mb-4">Deseja realmente excluir esta solicitação?</div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button>
+            <Button type="button" variant="destructive" onClick={() => {
+              if (selectedSolicitacao) {
+                setSolicitacoes(solicitacoes.filter(s => s.id !== selectedSolicitacao.id));
+              }
+              setDeleteDialogOpen(false);
+            }}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
                   </div>
                 </div>
               </CardHeader>

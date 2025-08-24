@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { mockPrestadores } from '@/data/mockData';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Search, Eye, Edit, Trash2, Phone, CreditCard, FileText } from 'lucide-react';
 import { Prestador } from '@/types';
 
@@ -34,6 +35,7 @@ const getNotaReciboLabel = (tipo: string) => {
 const Prestadores = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [prestadores] = useState<Prestador[]>(mockPrestadores);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const filteredPrestadores = prestadores.filter(
     (prestador) =>
@@ -51,10 +53,83 @@ const Prestadores = () => {
             Gerencie seus prestadores de serviços
           </p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Prestador
-        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Prestador
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Novo Prestador</DialogTitle>
+            </DialogHeader>
+            {/* Formulário completo de prestador */}
+            <form className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nome</label>
+                <input className="w-full border rounded px-2 py-1" placeholder="Nome do prestador" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Contato</label>
+                <input className="w-full border rounded px-2 py-1" placeholder="Telefone ou e-mail" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Tipo de Pessoa</label>
+                  <select className="w-full border rounded px-2 py-1">
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Documento</label>
+                  <input className="w-full border rounded px-2 py-1" placeholder="CPF ou CNPJ" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Endereço</label>
+                <input className="w-full border rounded px-2 py-1" placeholder="Rua, número, complemento" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Cidade</label>
+                  <input className="w-full border rounded px-2 py-1" placeholder="Cidade" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Estado</label>
+                  <input className="w-full border rounded px-2 py-1" placeholder="UF" maxLength={2} />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">CEP</label>
+                  <input className="w-full border rounded px-2 py-1" placeholder="CEP" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Tipo de Pagamento</label>
+                  <select className="w-full border rounded px-2 py-1">
+                    <option value="pix">PIX</option>
+                    <option value="transferencia">Transferência</option>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="cartao">Cartão</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Nota/Recibo</label>
+                  <select className="w-full border rounded px-2 py-1">
+                    <option value="nota">Nota Fiscal</option>
+                    <option value="recibo">Recibo</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                <Button type="submit">Salvar</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search */}
