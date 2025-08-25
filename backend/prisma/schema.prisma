@@ -20,6 +20,7 @@ model Usuario {
   senha      String
   nome       String
   isAdmin    Boolean  @default(false)
+  isMaster   Boolean  @default(false)
   empresaId  String
   empresa    Empresa  @relation(fields: [empresaId], references: [id])
   createdAt  DateTime @default(now())

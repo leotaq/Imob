@@ -1,5 +1,5 @@
-
 const express = require('express');
+require('dotenv').config(); // <-- adicione esta linha
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
@@ -58,30 +58,70 @@ app.post('/api/register', async (req, res) => {
 
 
 // Login de usuário com JWT
+
+// Login master OU login normal
 app.post('/api/login', async (req, res) => {
-  const { email, senha } = req.body;
-  if (!email || !senha) {
+  const { email, id, senha } = req.body;
+  if ((!email && !id) || !senha) {
     return res.status(400).json({ error: 'Preencha todos os campos.' });
   }
   try {
-    const usuario = await prisma.usuario.findUnique({ where: { email }, include: { empresa: true } });
+    // Permitir login por email OU id
+    let usuario;
+    if (email) {
+      usuario = await prisma.usuario.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          senha: true,
+          isAdmin: true,
+          isMaster: true,
+          empresa: true
+        }
+      });
+    } else if (id) {
+      usuario = await prisma.usuario.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          senha: true,
+          isAdmin: true,
+          isMaster: true,
+          empresa: true
+        }
+      });
+    }
     if (!usuario) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
     const senhaOk = await bcrypt.compare(senha, usuario.senha);
     if (!senhaOk) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
-    // Gerar JWT
+    // Gerar JWT incluindo isMaster
     const token = jwt.sign(
       {
         id: usuario.id,
         email: usuario.email,
         empresaId: usuario.empresaId,
         nome: usuario.nome,
-        isAdmin: usuario.isAdmin
+        isAdmin: usuario.isAdmin,
+        isMaster: usuario.isMaster
       },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+    const usuarioRetorno = {
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      empresa: usuario.empresa,
+      isAdmin: usuario.isAdmin,
+      isMaster: usuario.isMaster
+    };
+    console.log('LOGIN usuario retornado:', usuarioRetorno);
     res.json({
-      usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresa: usuario.empresa, isAdmin: usuario.isAdmin },
+      usuario: usuarioRetorno,
       token
     });
   } catch (err) {
@@ -111,6 +151,39 @@ app.get('/api/me', autenticarToken, async (req, res) => {
   if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
   res.json({ usuario });
 });
+
+// Criação automática do usuário master e empresa Master
+async function criarMaster() {
+  const masterEmail = 'leommaster';
+  const masterSenha = 'l1e2o3ariele';
+  const masterNome = 'Leo Master';
+  const masterEmpresaNome = 'Master';
+
+  // Verifica se já existe usuário master
+  const jaExiste = await prisma.usuario.findFirst({ where: { email: masterEmail, isMaster: true } });
+  if (jaExiste) return;
+
+  // Cria empresa Master se não existir
+  let empresa = await prisma.empresa.findFirst({ where: { nome: masterEmpresaNome } });
+  if (!empresa) {
+    empresa = await prisma.empresa.create({ data: { nome: masterEmpresaNome } });
+  }
+
+  // Cria usuário master
+  await prisma.usuario.create({
+    data: {
+      nome: masterNome,
+      email: masterEmail,
+      senha: await require('bcryptjs').hash(masterSenha, 10),
+      isAdmin: true,
+      isMaster: true,
+      empresaId: empresa.id
+    }
+  });
+  console.log('Usuário master criado com sucesso!');
+}
+
+criarMaster();
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

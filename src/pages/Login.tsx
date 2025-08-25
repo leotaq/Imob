@@ -65,11 +65,12 @@ const Login = () => {
         <div>
           <label className="block mb-1 font-medium">E-mail</label>
           <input
-            type="email"
+            type="text"
             className="w-full border rounded px-3 py-2"
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
+            placeholder="E-mail ou ID"
           />
         </div>
         <div>

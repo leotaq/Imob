@@ -1,6 +1,6 @@
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { Navigate } from "react-router-dom";
 
 type Usuario = { id: string; nome: string; email: string; isAdmin?: boolean };
 
@@ -11,6 +11,16 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<'usuarios' | 'empresa'>('usuarios');
   const [empresa, setEmpresa] = useState<any>(usuario?.empresa || null);
+
+  // Redireciona se não for usuário master
+  if (!usuario || !usuario.isMaster) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold text-red-700">Acesso restrito</h2>
+        <p className="text-gray-600 mt-2">Somente o usuário master pode acessar esta página.</p>
+      </div>
+    );
+  }
 
   // Carregar usuários
   useEffect(() => {

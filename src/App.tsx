@@ -15,8 +15,8 @@ import Financeiro from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Perfil from "./pages/Perfil";
-import Admin from "./pages/Admin";
 import Register from "./pages/Register";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -57,11 +57,10 @@ const App = () => (
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/admin" element={
               <ProtectedRoute>
-                <AdminGuard>
-                  <Admin />
-                </AdminGuard>
+                <Admin />
               </ProtectedRoute>
             } />
+            {/* Rota de admin removida para reestruturação */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Route>
