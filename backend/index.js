@@ -280,3 +280,33 @@ app.patch('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async
     res.status(500).json({ error: 'Erro ao atualizar usuário.', details: err.message });
   }
 });
+
+// Editar nome/email do usuário
+app.put('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
+  try {
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const { usuarioId } = req.params;
+    const { nome, email } = req.body;
+    const usuario = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { nome, email }
+    });
+    res.json({ usuario });
+  } catch (err) {
+    console.error('Erro ao editar usuário:', err);
+    res.status(500).json({ error: 'Erro ao editar usuário.' });
+  }
+});
+
+// Excluir usuário
+app.delete('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
+  try {
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const { usuarioId } = req.params;
+    await prisma.usuario.delete({ where: { id: usuarioId } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erro ao excluir usuário:', err);
+    res.status(500).json({ error: 'Erro ao excluir usuário.' });
+  }
+});

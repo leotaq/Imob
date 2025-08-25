@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
@@ -7,22 +8,36 @@ type Empresa = { id: string; nome: string; usuarios: Usuario[] };
 export default function Admin() {
   const [editandoUsuarioId, setEditandoUsuarioId] = useState<string | null>(null);
   const [editGestor, setEditGestor] = useState(false);
+  const [editNome, setEditNome] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
-  // Editar papel gestor do usuário
+  // Editar papel gestor, nome e email do usuário
   const handleEditarUsuario = (usuario: Usuario) => {
     setEditandoUsuarioId(usuario.id);
     setEditGestor(!!usuario.isGestor);
+    setEditNome(usuario.nome);
+    setEditEmail(usuario.email);
   };
 
+  // Salvar edição do usuário (PUT)
   const handleSalvarEdicaoUsuario = async (usuario: Usuario) => {
     setErro("");
     try {
+      // Atualiza nome/email
       const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ isGestor: editGestor })
+        body: JSON.stringify({ nome: editNome, email: editEmail })
       });
       if (!res.ok) throw new Error("Erro ao atualizar usuário.");
+      // Atualiza isGestor (se mudou)
+      if (usuario.isGestor !== editGestor) {
+        await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ isGestor: editGestor })
+        });
+      }
       // Atualizar lista de empresas/usuários
       const empresasRes = await fetch("http://localhost:3001/api/empresas", {
         headers: { Authorization: `Bearer ${token}` },
@@ -33,6 +48,28 @@ export default function Admin() {
       setEditandoUsuarioId(null);
     } catch {
       setErro("Erro ao atualizar usuário.");
+    }
+  };
+
+  // Excluir usuário
+  const handleExcluirUsuario = async (usuario: Usuario) => {
+    setErro("");
+    if (!window.confirm(`Tem certeza que deseja excluir o usuário ${usuario.nome}?`)) return;
+    try {
+      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Erro ao excluir usuário.");
+      // Atualizar lista de empresas/usuários
+      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const empresasData = await empresasRes.json();
+      setEmpresas(empresasData.empresas);
+      setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada?.id) || null);
+    } catch {
+      setErro("Erro ao excluir usuário.");
     }
   };
   const { token, usuario } = useAuth();
@@ -164,7 +201,18 @@ export default function Admin() {
                   <li key={u.id} className="p-2 flex justify-between items-center gap-2">
                     {editandoUsuarioId === u.id ? (
                       <>
-                        <span>{u.nome} ({u.email})</span>
+                        <input
+                          type="text"
+                          className="border rounded px-1 py-0.5 text-sm w-28"
+                          value={editNome}
+                          onChange={e => setEditNome(e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          className="border rounded px-1 py-0.5 text-sm w-36"
+                          value={editEmail}
+                          onChange={e => setEditEmail(e.target.value)}
+                        />
                         <label className="flex items-center gap-1">
                           <input type="checkbox" checked={editGestor} onChange={e => setEditGestor(e.target.checked)} /> Gestor
                         </label>
@@ -175,6 +223,7 @@ export default function Admin() {
                       <>
                         <span>{u.nome} ({u.email}) <span className="text-xs ml-2 font-semibold">{u.isGestor ? 'Gestor' : 'Usuário'}</span></span>
                         <button className="ml-2 text-xs text-blue-600 underline" onClick={() => handleEditarUsuario(u)}>Editar</button>
+                        <button className="ml-1 text-xs text-red-600 underline" onClick={() => handleExcluirUsuario(u)}>Excluir</button>
                       </>
                     )}
                   </li>
