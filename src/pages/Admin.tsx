@@ -1,16 +1,47 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { Navigate } from "react-router-dom";
 
-type Usuario = { id: string; nome: string; email: string; isAdmin?: boolean };
+type Usuario = { id: string; nome: string; email: string; isGestor?: boolean };
+type Empresa = { id: string; nome: string; usuarios: Usuario[] };
 
 export default function Admin() {
+  const [editandoUsuarioId, setEditandoUsuarioId] = useState<string | null>(null);
+  const [editGestor, setEditGestor] = useState(false);
+
+  // Editar papel gestor do usuário
+  const handleEditarUsuario = (usuario: Usuario) => {
+    setEditandoUsuarioId(usuario.id);
+    setEditGestor(!!usuario.isGestor);
+  };
+
+  const handleSalvarEdicaoUsuario = async (usuario: Usuario) => {
+    setErro("");
+    try {
+      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isGestor: editGestor })
+      });
+      if (!res.ok) throw new Error("Erro ao atualizar usuário.");
+      // Atualizar lista de empresas/usuários
+      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const empresasData = await empresasRes.json();
+      setEmpresas(empresasData.empresas);
+      setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada?.id) || null);
+      setEditandoUsuarioId(null);
+    } catch {
+      setErro("Erro ao atualizar usuário.");
+    }
+  };
   const { token, usuario } = useAuth();
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<Empresa | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
-  const [aba, setAba] = useState<'usuarios' | 'empresa'>('usuarios');
-  const [empresa, setEmpresa] = useState<any>(usuario?.empresa || null);
+  const [novoNomeEmpresa, setNovoNomeEmpresa] = useState("");
+  const [novoUsuario, setNovoUsuario] = useState({ nome: "", email: "", senha: "", isGestor: false });
 
   // Redireciona se não for usuário master
   if (!usuario || !usuario.isMaster) {
@@ -22,81 +53,153 @@ export default function Admin() {
     );
   }
 
-  // Carregar usuários
+  // Carregar empresas e usuários
   useEffect(() => {
     if (!token) return;
-    if (aba !== 'usuarios') return;
     setLoading(true);
-    fetch("http://localhost:3001/api/usuarios", {
+    fetch("http://localhost:3001/api/empresas", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Não autorizado");
         return res.json();
       })
-      .then((data) => setUsuarios(data.usuarios))
-      .catch(() => setErro("Não autorizado ou erro ao buscar usuários."))
+      .then((data) => setEmpresas(data.empresas))
+      .catch(() => setErro("Não autorizado ou erro ao buscar empresas."))
       .finally(() => setLoading(false));
-  }, [token, aba]);
+  }, [token]);
 
-  // Carregar empresa (mock, pois depende do backend)
-  useEffect(() => {
-    if (aba !== 'empresa') return;
-    setEmpresa(usuario?.empresa || { nome: 'Minha Empresa', id: '1' });
-  }, [aba, usuario]);
+  // Selecionar empresa
+  const handleSelecionarEmpresa = (empresa: Empresa) => {
+    setEmpresaSelecionada(empresa);
+    setErro("");
+  };
+
+  // Cadastrar nova empresa
+  const handleCadastrarEmpresa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro("");
+    if (!novoNomeEmpresa) return setErro("Preencha o nome da empresa.");
+    try {
+      const res = await fetch("http://localhost:3001/api/empresas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nome: novoNomeEmpresa })
+      });
+      if (!res.ok) throw new Error("Erro ao cadastrar empresa.");
+      setNovoNomeEmpresa("");
+      // Recarregar empresas
+      const data = await res.json();
+      setEmpresas((prev) => [...prev, { ...data.empresa, usuarios: [] }]);
+    } catch {
+      setErro("Erro ao cadastrar empresa.");
+    }
+  };
+
+  // Cadastrar novo usuário na empresa selecionada
+  const handleCadastrarUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro("");
+    if (!empresaSelecionada) return setErro("Selecione uma empresa.");
+    const { nome, email, senha, isGestor } = novoUsuario;
+    if (!nome || !email || !senha) return setErro("Preencha todos os campos do usuário.");
+    try {
+      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada.id}/usuarios`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nome, email, senha, isGestor })
+      });
+      if (!res.ok) throw new Error("Erro ao cadastrar usuário.");
+      setNovoUsuario({ nome: "", email: "", senha: "", isGestor: false });
+      // Recarregar empresas (simples, pode ser otimizado)
+      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const empresasData = await empresasRes.json();
+      setEmpresas(empresasData.empresas);
+      setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada.id) || null);
+    } catch {
+      setErro("Erro ao cadastrar usuário.");
+    }
+  };
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Administração</h2>
-      <div className="flex gap-4 mb-6">
-        <button
-          className={`px-4 py-2 rounded font-semibold ${aba === 'usuarios' ? 'bg-blue-600 text-white' : 'bg-muted text-blue-700'}`}
-          onClick={() => setAba('usuarios')}
-        >Usuários</button>
-        <button
-          className={`px-4 py-2 rounded font-semibold ${aba === 'empresa' ? 'bg-blue-600 text-white' : 'bg-muted text-blue-700'}`}
-          onClick={() => setAba('empresa')}
-        >Empresa</button>
-      </div>
-
-      {aba === 'usuarios' && (
-        <div>
-          <h3 className="text-lg font-bold mb-2">Usuários da Empresa</h3>
-          {loading ? (
-            <div>Carregando...</div>
-          ) : erro ? (
-            <div className="text-red-500">{erro}</div>
-          ) : (
-            <table className="w-full border text-sm">
-              <thead>
-                <tr className="bg-muted">
-                  <th className="p-2 text-left">Nome</th>
-                  <th className="p-2 text-left">E-mail</th>
-                  <th className="p-2 text-left">Admin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <tr key={u.id} className="border-t">
-                    <td className="p-2">{u.nome}</td>
-                    <td className="p-2">{u.email}</td>
-                    <td className="p-2">{u.isAdmin ? 'Sim' : 'Não'}</td>
-                  </tr>
+    <div className="p-8">
+      <h2 className="text-2xl font-bold mb-4">Administração de Empresas e Usuários</h2>
+      {erro && <div className="text-red-600 mb-2">{erro}</div>}
+      <div className="flex gap-8">
+        {/* Lista de empresas */}
+        <div className="w-1/3">
+          <h3 className="font-semibold mb-2">Empresas</h3>
+          <ul className="border rounded divide-y">
+            {empresas.map((empresa) => (
+              <li
+                key={empresa.id}
+                className={`p-2 cursor-pointer hover:bg-gray-100 ${empresaSelecionada?.id === empresa.id ? "bg-blue-100" : ""}`}
+                onClick={() => handleSelecionarEmpresa(empresa)}
+              >
+                {empresa.nome}
+              </li>
+            ))}
+          </ul>
+          {/* Formulário de cadastro de empresa */}
+          <form onSubmit={handleCadastrarEmpresa} className="mt-4 space-y-2">
+            <input
+              type="text"
+              className="w-full border rounded px-2 py-1"
+              placeholder="Nova empresa"
+              value={novoNomeEmpresa}
+              onChange={e => setNovoNomeEmpresa(e.target.value)}
+            />
+            <button type="submit" className="w-full bg-blue-600 text-white rounded py-1">Cadastrar empresa</button>
+          </form>
+        </div>
+        {/* Usuários da empresa selecionada */}
+        <div className="flex-1">
+          <h3 className="font-semibold mb-2">Usuários da empresa</h3>
+          {empresaSelecionada ? (
+            <>
+              <ul className="border rounded divide-y mb-4">
+                {empresaSelecionada.usuarios.map((u) => (
+                  <li key={u.id} className="p-2 flex justify-between items-center gap-2">
+                    {editandoUsuarioId === u.id ? (
+                      <>
+                        <span>{u.nome} ({u.email})</span>
+                        <label className="flex items-center gap-1">
+                          <input type="checkbox" checked={editGestor} onChange={e => setEditGestor(e.target.checked)} /> Gestor
+                        </label>
+                        <button className="bg-green-600 text-white rounded px-2 py-1 text-xs" onClick={() => handleSalvarEdicaoUsuario(u)}>Salvar</button>
+                        <button className="ml-1 text-xs text-gray-500 underline" onClick={() => setEditandoUsuarioId(null)}>Cancelar</button>
+                      </>
+                    ) : (
+                      <>
+                        <span>{u.nome} ({u.email}) <span className="text-xs ml-2 font-semibold">{u.isGestor ? 'Gestor' : 'Usuário'}</span></span>
+                        <button className="ml-2 text-xs text-blue-600 underline" onClick={() => handleEditarUsuario(u)}>Editar</button>
+                      </>
+                    )}
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+              {/* Formulário de cadastro de usuário */}
+              <form onSubmit={handleCadastrarUsuario} className="space-y-2">
+                <div className="flex gap-2">
+                  <input type="text" className="border rounded px-2 py-1 flex-1" placeholder="Nome" value={novoUsuario.nome} onChange={e => setNovoUsuario(v => ({ ...v, nome: e.target.value }))} />
+                  <input type="text" className="border rounded px-2 py-1 flex-1" placeholder="E-mail" value={novoUsuario.email} onChange={e => setNovoUsuario(v => ({ ...v, email: e.target.value }))} />
+                  <input type="password" className="border rounded px-2 py-1 flex-1" placeholder="Senha" value={novoUsuario.senha} onChange={e => setNovoUsuario(v => ({ ...v, senha: e.target.value }))} />
+                </div>
+                <div className="flex gap-4 items-center">
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={novoUsuario.isGestor} onChange={e => setNovoUsuario(v => ({ ...v, isGestor: e.target.checked }))} /> Gestor
+                  </label>
+                  <button type="submit" className="bg-blue-600 text-white rounded px-3 py-1">Cadastrar usuário</button>
+                </div>
+              </form>
+            </>
+          ) : (
+            <div className="text-gray-500">Selecione uma empresa para ver os usuários.</div>
           )}
         </div>
-      )}
-
-      {aba === 'empresa' && empresa && (
-        <div>
-          <h3 className="text-lg font-bold mb-2">Dados da Empresa</h3>
-          <div className="mb-2">Nome: <span className="font-semibold">{empresa.nome}</span></div>
-          <div className="mb-2">ID: <span className="font-mono">{empresa.id}</span></div>
-          {/* Adicione mais campos conforme necessário */}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+console.log('Backend iniciado!');
 const express = require('express');
 require('dotenv').config(); // <-- adicione esta linha
 const { PrismaClient } = require('@prisma/client');
@@ -10,10 +11,70 @@ const JWT_SECRET = process.env.JWT_SECRET || 'segredo_super_secreto';
 const app = express();
 const prisma = new PrismaClient();
 
+
+app.use((req, res, next) => {
+  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 app.use(cors());
 app.use(express.json());
 
 // Listar todos os usuários da empresa do usuário autenticado
+// Listar todas as empresas e seus usuários (admin/master)
+app.get('/api/empresas', autenticarToken, async (req, res) => {
+  try {
+    // Apenas master pode listar todas as empresas
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const empresas = await prisma.empresa.findMany({
+      include: {
+        usuarios: {
+          select: { id: true, nome: true, email: true, isGestor: true }
+        }
+      }
+    });
+    res.json({ empresas });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar empresas.' });
+  }
+});
+
+// Cadastrar nova empresa (admin/master)
+app.post('/api/empresas', autenticarToken, async (req, res) => {
+  try {
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const { nome } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome da empresa obrigatório.' });
+    const empresa = await prisma.empresa.create({ data: { nome } });
+    res.status(201).json({ empresa });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao criar empresa.' });
+  }
+});
+
+// Cadastrar novo usuário em uma empresa (admin/master)
+app.post('/api/empresas/:empresaId/usuarios', autenticarToken, async (req, res) => {
+  try {
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const { empresaId } = req.params;
+    const { nome, email, senha, isGestor } = req.body;
+    if (!nome || !email || !senha) return res.status(400).json({ error: 'Preencha todos os campos.' });
+    const usuario = await prisma.usuario.create({
+      data: {
+        nome,
+        email,
+        senha: await bcrypt.hash(senha, 10),
+        isGestor: !!isGestor,
+        empresaId
+      }
+    });
+    res.status(201).json({ usuario });
+  } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'E-mail já cadastrado.' });
+    }
+    res.status(500).json({ error: 'Erro ao criar usuário.' });
+  }
+});
 app.get('/api/usuarios', autenticarToken, async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany({
@@ -132,10 +193,18 @@ app.post('/api/login', async (req, res) => {
 // Middleware para proteger rotas
 function autenticarToken(req, res, next) {
   const authHeader = req.headers['authorization'];
+  console.log('Authorization header:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token não fornecido.' });
+  if (!token) {
+    console.log('Token não fornecido.');
+    return res.status(401).json({ error: 'Token não fornecido.' });
+  }
   jwt.verify(token, JWT_SECRET, (err, usuario) => {
-    if (err) return res.status(403).json({ error: 'Token inválido.' });
+    if (err) {
+      console.log('Token inválido:', err.message);
+      return res.status(403).json({ error: 'Token inválido.' });
+    }
+    console.log('Usuário autenticado pelo token:', usuario);
     req.usuario = usuario;
     next();
   });
@@ -188,4 +257,26 @@ criarMaster();
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`API rodando em http://localhost:${PORT}`);
+});
+
+// Atualizar papel gestor do usuário
+app.patch('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
+  try {
+    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    const { empresaId, usuarioId } = req.params;
+    const { isGestor } = req.body;
+    console.log('PATCH usuarioId:', usuarioId, 'empresaId:', empresaId, 'isGestor:', isGestor);
+    // Buscar usuário antes do update
+    const usuarioAntes = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+    console.log('Usuário antes do update:', usuarioAntes);
+    const usuario = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { isGestor: !!isGestor }
+    });
+    console.log('Usuário após update:', usuario);
+    res.json({ usuario });
+  } catch (err) {
+    console.error('Erro ao atualizar usuário:', err);
+    res.status(500).json({ error: 'Erro ao atualizar usuário.', details: err.message });
+  }
 });
