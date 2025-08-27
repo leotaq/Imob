@@ -70,7 +70,7 @@ const Dashboard = () => {
   const emAndamento = mockSolicitacoes.filter(s => s.status === 'execucao').length;
   const concluidas = mockSolicitacoes.filter(s => s.status === 'concluida').length;
   const totalOrcamentos = mockOrcamentos.reduce((acc, orc) => acc + orc.total, 0);
-  const orcamentosAprovados = mockOrcamentos.filter(o => o.status === 'aprovado').length;
+  const orcamentosAprovados = mockOrcamentos.filter(o => o.situacao === 'aprovado').length;
   const taxaConclusao = Math.round((concluidas / totalSolicitacoes) * 100);
   const tempoMedioResolucao = 5.2; // dias (calculado)
 

@@ -209,7 +209,7 @@ const Orcamentos = () => {
                       <option value="">Selecione um prestador</option>
                       {mockPrestadores.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.nome} • {p.especialidade}
+                          {p.nome}
                         </option>
                       ))}
                     </select>
@@ -445,6 +445,11 @@ const Orcamentos = () => {
           </DialogHeader>
           {selectedImovelId && (
             <OrcamentoConsolidado
+              imovelId={selectedImovelId}
+              onSave={handleSaveOrcamentoConsolidado}
+              onCancel={() => setIsConsolidadoDialogOpen(false)}
+              solicitacoes={mockSolicitacoes}
+              prestadores={mockPrestadores}
               imovelId={selectedImovelId}
               onSave={handleSaveOrcamentoConsolidado}
               onCancel={() => setIsConsolidadoDialogOpen(false)}

@@ -134,7 +134,7 @@ const useOrcamentos = () => {
       menorPreco,
       maiorPreco,
       precoMedio,
-      valorTotal
+      valorTotal  // ✅ Propriedade presente
     };
   }, [filteredOrcamentos]);
 
