@@ -55,3 +55,29 @@ export interface HistoricoStatus {
   usuario: string;
   observacao: string;
 }
+
+
+export interface OrcamentoConsolidado {
+  id: string;
+  imovelId: string;
+  solicitacoes: string[]; // IDs das solicitações incluídas
+  prestador: Prestador;
+  itens: ItemOrcamento[];
+  subtotal: number;
+  taxaAdm: number;
+  total: number;
+  prazoExecucao: number;
+  dataOrcamento: Date;
+  observacoes?: string;
+  status: 'rascunho' | 'enviado' | 'aprovado' | 'rejeitado';
+}
+
+export interface ItemOrcamento {
+  id: string;
+  solicitacaoId: string;
+  tipoManutencao: string;
+  descricao: string;
+  maoDeObra: number;
+  materiais: number;
+  subtotal: number;
+}

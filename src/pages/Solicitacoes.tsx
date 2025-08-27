@@ -1,16 +1,40 @@
 import React, { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Solicitacao } from '@/types';
+import { useSolicitacoes } from '@/hooks/useSolicitacoes';
+import SolicitacaoFiltersComponent from '@/components/SolicitacaoFilters';
+import SolicitacaoCard from '@/components/SolicitacaoCard';
+import { useToast } from '@/hooks/use-toast';
 
-// Formulário de edição de solicitação (deve ficar fora do componente principal)
+// Função para gerar ID único
+const generateUniqueId = () => {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000);
+  return `SOL-${timestamp}-${random.toString().padStart(3, '0')}`;
+};
+
+// Formulário de edição melhorado
 function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
   const [form, setForm] = React.useState({
     ...solicitacao,
     prazoFinal: solicitacao.prazoFinal instanceof Date ? solicitacao.prazoFinal.toISOString().slice(0,10) : solicitacao.prazoFinal,
     dataSolicitacao: solicitacao.dataSolicitacao instanceof Date ? solicitacao.dataSolicitacao.toISOString().slice(0,10) : solicitacao.dataSolicitacao
   });
+
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
   }
+
   function handleSubmit(e) {
     e.preventDefault();
     onSave({
@@ -19,9 +43,20 @@ function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
       dataSolicitacao: new Date(form.dataSolicitacao),
     });
   }
+
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">ID da Solicitação</label>
+          <input 
+            name="id" 
+            className="w-full border rounded px-2 py-1 bg-gray-100" 
+            value={form.id} 
+            disabled 
+            readOnly 
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium mb-1">ID do Imóvel *</label>
           <input name="imovelId" className="w-full border rounded px-2 py-1" value={form.imovelId} onChange={handleChange} required />
@@ -73,7 +108,12 @@ function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">Descrição</label>
-        <textarea name="descricao" className="w-full border rounded px-2 py-1" value={form.descricao} onChange={handleChange} />
+        <textarea 
+          name="descricao" 
+          className="w-full border rounded px-2 py-1 h-20" 
+          value={form.descricao} 
+          onChange={handleChange} 
+        />
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
@@ -82,55 +122,6 @@ function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
     </form>
   );
 }
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useToast } from '@/hooks/use-toast';
-import { mockSolicitacoes } from '@/data/mockData';
-import { Plus, Search, Eye, Edit, Trash2, Calendar } from 'lucide-react';
-import { Solicitacao } from '@/types';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'aberta': return 'warning';
-    case 'orcamento': return 'secondary';
-    case 'aprovada': return 'primary';
-    case 'execucao': return 'primary';
-    case 'concluida': return 'success';
-    case 'cancelada': return 'destructive';
-    default: return 'secondary';
-  }
-};
-
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case 'aberta': return 'Aberta';
-    case 'orcamento': return 'Orçamento';
-    case 'aprovada': return 'Aprovada';
-    case 'execucao': return 'Em Execução';
-    case 'concluida': return 'Concluída';
-    case 'cancelada': return 'Cancelada';
-    default: return status;
-  }
-};
-
-const getTipoSolicitanteLabel = (tipo: string) => {
-  switch (tipo) {
-    case 'inquilino': return 'Inquilino';
-    case 'proprietario': return 'Proprietário';
-    case 'imobiliaria': return 'Imobiliária';
-    case 'terceiros': return 'Terceiros';
-    default: return tipo;
-  }
-};
 
 const solicitacaoSchema = z.object({
   imovelId: z.string().min(1, 'ID do imóvel é obrigatório'),
@@ -147,8 +138,17 @@ const solicitacaoSchema = z.object({
 type SolicitacaoFormData = z.infer<typeof solicitacaoSchema>;
 
 const Solicitacoes = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>(mockSolicitacoes);
+  const {
+    solicitacoes,
+    allSolicitacoes,
+    loading,
+    filters,
+    setFilters,
+    createSolicitacao,
+    updateSolicitacao,
+    deleteSolicitacao
+  } = useSolicitacoes();
+
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<Solicitacao | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -163,45 +163,66 @@ const Solicitacoes = () => {
       tipoSolicitante: 'inquilino',
       nome: '',
       telefone: '',
-  endereco: '',
-  cidade: '',
-  tipoManutencao: '',
-  prazoFinal: '',
-  descricao: '',
+      endereco: '',
+      cidade: '',
+      tipoManutencao: '',
+      prazoFinal: '',
+      descricao: '',
     },
   });
 
-  const filteredSolicitacoes = solicitacoes.filter(
-    (solicitacao) =>
-      solicitacao.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitacao.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitacao.endereco.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitacao.imovelId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const onSubmit = async (data: SolicitacaoFormData) => {
+    try {
+      const uniqueId = generateUniqueId();
+      await createSolicitacao({
+        ...data,
+        id: uniqueId,
+        prazoFinal: new Date(data.prazoFinal)
+      });
+      form.reset();
+      setIsDialogOpen(false);
+    } catch (error) {
+      // Error já tratado no hook
+    }
+  };
 
-  const onSubmit = (data: SolicitacaoFormData) => {
-    const novaSolicitacao: Solicitacao = {
-      id: Date.now().toString(),
-      imovelId: data.imovelId,
-      tipoSolicitante: data.tipoSolicitante,
-      nome: data.nome,
-      telefone: data.telefone,
-  endereco: data.endereco,
-  cidade: data.cidade,
-      tipoManutencao: data.tipoManutencao,
-      dataSolicitacao: new Date(),
-      prazoFinal: new Date(data.prazoFinal),
-      descricao: data.descricao || '',
-      status: 'aberta',
-    };
+  const handleView = (solicitacao: Solicitacao) => {
+    setSelectedSolicitacao(solicitacao);
+    setViewDialogOpen(true);
+  };
 
-    setSolicitacoes([...solicitacoes, novaSolicitacao]);
-    toast({
-      title: 'Solicitação criada com sucesso!',
-      description: `Solicitação para ${data.tipoManutencao} foi criada.`,
-    });
-    form.reset();
-    setIsDialogOpen(false);
+  const handleEdit = (solicitacao: Solicitacao) => {
+    setSelectedSolicitacao(solicitacao);
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (solicitacao: Solicitacao) => {
+    setSelectedSolicitacao(solicitacao);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedSolicitacao) {
+      try {
+        await deleteSolicitacao(selectedSolicitacao.id);
+        setDeleteDialogOpen(false);
+        setSelectedSolicitacao(null);
+      } catch (error) {
+        // Error já tratado no hook
+      }
+    }
+  };
+
+  const handleEditSave = async (updatedData: Partial<Solicitacao>) => {
+    if (selectedSolicitacao) {
+      try {
+        await updateSolicitacao(selectedSolicitacao.id, updatedData);
+        setEditDialogOpen(false);
+        setSelectedSolicitacao(null);
+      } catch (error) {
+        // Error já tratado no hook
+      }
+    }
   };
 
   return (
@@ -211,7 +232,7 @@ const Solicitacoes = () => {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Solicitações</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie todas as solicitações de manutenção
+            Gerencie todas as solicitações de manutenção com filtros avançados
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -351,7 +372,7 @@ const Solicitacoes = () => {
                       <FormLabel>Descrição</FormLabel>
                       <FormControl>
                         <textarea
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                           placeholder="Descreva o problema ou serviço necessário..."
                           {...field}
                         />
@@ -364,8 +385,8 @@ const Solicitacoes = () => {
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
-                    Criar Solicitação
+                  <Button type="submit" disabled={loading}>
+                    {loading ? 'Criando...' : 'Criar Solicitação'}
                   </Button>
                 </div>
               </form>
@@ -374,80 +395,113 @@ const Solicitacoes = () => {
         </Dialog>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, tipo ou endereço..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      {/* Filtros Avançados */}
+      <SolicitacaoFiltersComponent
+        filters={filters}
+        onFiltersChange={setFilters}
+        totalCount={allSolicitacoes.length}
+        filteredCount={solicitacoes.length}
+      />
 
-      {/* Solicitações List */}
+      {/* Lista de Solicitações */}
       <div className="space-y-4">
-        {filteredSolicitacoes.length === 0 ? (
+        {loading && (
           <Card>
             <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground">Nenhuma solicitação encontrada.</p>
+              <p className="text-muted-foreground">Carregando...</p>
+            </CardContent>
+          </Card>
+        )}
+        
+        {!loading && solicitacoes.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">
+                {allSolicitacoes.length === 0 
+                  ? 'Nenhuma solicitação encontrada. Crie a primeira!' 
+                  : 'Nenhuma solicitação corresponde aos filtros aplicados.'}
+              </p>
             </CardContent>
           </Card>
         ) : (
-          filteredSolicitacoes.map((solicitacao) => (
-            <Card key={solicitacao.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg flex items-center gap-3">
-                      {solicitacao.tipoManutencao}
-                      <Badge variant={getStatusColor(solicitacao.status) as any}>
-                        {getStatusLabel(solicitacao.status)}
-                      </Badge>
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Imóvel: {solicitacao.imovelId} • {getTipoSolicitanteLabel(solicitacao.tipoSolicitante)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setViewDialogOpen(true); }}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setEditDialogOpen(true); }}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedSolicitacao(solicitacao); setDeleteDialogOpen(true); }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+          solicitacoes.map((solicitacao) => (
+            <SolicitacaoCard
+              key={solicitacao.id}
+              solicitacao={solicitacao}
+              onView={handleView}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ))
+        )}
+      </div>
+
       {/* Modal Visualizar Solicitação */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-  <DialogContent className="max-w-lg" overlayTransparent={true}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Detalhes da Solicitação</DialogTitle>
           </DialogHeader>
           {selectedSolicitacao && (
-            <div className="space-y-2">
-              <div><b>Imóvel:</b> {selectedSolicitacao.imovelId}</div>
-              <div><b>Tipo de Manutenção:</b> {selectedSolicitacao.tipoManutencao}</div>
-              <div><b>Solicitante:</b> {selectedSolicitacao.nome} ({getTipoSolicitanteLabel(selectedSolicitacao.tipoSolicitante)})</div>
-              <div><b>Telefone:</b> {selectedSolicitacao.telefone}</div>
-              <div><b>Endereço:</b> {selectedSolicitacao.endereco}</div>
-              <div><b>Cidade:</b> {selectedSolicitacao.cidade}</div>
-              <div><b>Status:</b> {getStatusLabel(selectedSolicitacao.status)}</div>
-              <div><b>Data Solicitação:</b> {selectedSolicitacao.dataSolicitacao.toLocaleDateString('pt-BR')}</div>
-              <div><b>Prazo Final:</b> {selectedSolicitacao.prazoFinal.toLocaleDateString('pt-BR')}</div>
-              <div><b>Descrição:</b> {selectedSolicitacao.descricao}</div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">ID da Solicitação</p>
+                  <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{selectedSolicitacao.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Imóvel</p>
+                  <p className="text-sm">{selectedSolicitacao.imovelId}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tipo de Manutenção</p>
+                  <p className="text-sm">{selectedSolicitacao.tipoManutencao}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Solicitante</p>
+                  <p className="text-sm">{selectedSolicitacao.nome}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Telefone</p>
+                  <p className="text-sm">{selectedSolicitacao.telefone}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Endereço</p>
+                  <p className="text-sm">{selectedSolicitacao.endereco}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Cidade</p>
+                  <p className="text-sm">{selectedSolicitacao.cidade}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                  <p className="text-sm">{selectedSolicitacao.status}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Data Solicitação</p>
+                  <p className="text-sm">{selectedSolicitacao.dataSolicitacao.toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Prazo Final</p>
+                  <p className="text-sm">{selectedSolicitacao.prazoFinal.toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
+              {selectedSolicitacao.descricao && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Descrição</p>
+                  <div className="p-2 bg-muted rounded-lg max-h-20 overflow-y-auto">
+                    <p className="text-sm">{selectedSolicitacao.descricao}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-
-      {/* Modal Editar Solicitação (completo) */}
+      {/* Modal Editar Solicitação */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl" overlayTransparent={true}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Solicitação</DialogTitle>
           </DialogHeader>
@@ -455,74 +509,42 @@ const Solicitacoes = () => {
             <EditSolicitacaoForm
               solicitacao={selectedSolicitacao}
               onCancel={() => setEditDialogOpen(false)}
-              onSave={(updated) => {
-                setSolicitacoes((prev) => prev.map(s => s.id === updated.id ? updated : s));
-                setEditDialogOpen(false);
-                setSelectedSolicitacao(updated);
-                toast({ title: 'Solicitação atualizada!' });
-              }}
+              onSave={handleEditSave}
             />
           )}
         </DialogContent>
       </Dialog>
 
-
-
       {/* Modal Excluir Solicitação */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-  <DialogContent className="max-w-sm" overlayTransparent={true}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Excluir Solicitação</DialogTitle>
           </DialogHeader>
-          <div className="mb-4">Deseja realmente excluir esta solicitação?</div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button>
-            <Button type="button" variant="destructive" onClick={() => {
-              if (selectedSolicitacao) {
-                setSolicitacoes(solicitacoes.filter(s => s.id !== selectedSolicitacao.id));
-              }
-              setDeleteDialogOpen(false);
-            }}>Excluir</Button>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Deseja realmente excluir esta solicitação? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={confirmDelete}
+                disabled={loading}
+              >
+                {loading ? 'Excluindo...' : 'Excluir'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Solicitante</p>
-                    <p className="text-sm text-muted-foreground">{solicitacao.nome}</p>
-                    <p className="text-xs text-muted-foreground">{solicitacao.telefone}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Endereço</p>
-                    <p className="text-sm text-muted-foreground">{solicitacao.endereco}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Data Solicitação</p>
-                    <p className="text-sm text-muted-foreground">
-                      {solicitacao.dataSolicitacao.toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Prazo Final</p>
-                    <p className="text-sm text-muted-foreground">
-                      {solicitacao.prazoFinal.toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
-                {solicitacao.descricao && (
-                  <div className="mt-4 p-3 bg-muted rounded-lg">
-                    <p className="text-sm text-foreground">{solicitacao.descricao}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
     </div>
   );
 };

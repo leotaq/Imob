@@ -1,291 +1,457 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useImovelGrouping } from '@/hooks/useImovelGrouping';
+import { ImovelCard } from '@/components/orcamentos/ImovelCard';
+import { OrcamentoConsolidado } from '@/components/OrcamentoConsolidado';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockOrcamentos, mockSolicitacoes, mockPrestadores } from '@/data/mockData';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, Calendar, CheckCircle, Star, Filter } from 'lucide-react';
-import { Orcamento } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Building2, FileText, BarChart3, Download, Plus, Calculator } from 'lucide-react';
+import { mockSolicitacoes, mockPrestadores } from '@/data/mockData';
+import type { OrcamentoConsolidado as OrcamentoConsolidadoType } from '@/types';
 
 const Orcamentos = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSolicitacaoId, setSelectedSolicitacaoId] = useState('all');
-  const [orcamentos] = useState<Orcamento[]>(mockOrcamentos);
+  const { orcamentos, createOrcamento, updateOrcamento, statistics } = useOrcamentos();
+  const { imoveisAgrupados } = useImovelGrouping();
+  
+  const [viewMode, setViewMode] = useState<'imovel' | 'solicitacao'>('imovel');
+  const [isConsolidadoDialogOpen, setIsConsolidadoDialogOpen] = useState(false);
+  const [selectedImovelId, setSelectedImovelId] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // Filtra orçamentos conforme filtro e busca
-  const filteredOrcamentos = orcamentos.filter((orcamento) => {
-    if (selectedSolicitacaoId !== 'all' && orcamento.solicitacaoId !== selectedSolicitacaoId) {
-      return false;
-    }
-    if (!searchTerm) return true;
-    return (
-      orcamento.prestador.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getSolicitacaoInfo(orcamento.solicitacaoId)?.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
+  const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
+  const [newOrcamento, setNewOrcamento] = useState({
+    solicitacaoId: '',
+    prestadorId: '',
+    maoDeObra: 0,
+    materiais: 0,
+    taxaAdm: 10,
+    prazoExecucao: 7,
+    dataOrcamento: new Date().toISOString().split('T')[0],
+    observacoes: '',
+    isPrincipal: false
   });
 
-  // Agrupa orçamentos por solicitação
-  const groupedOrcamentos = filteredOrcamentos.reduce((acc, orcamento) => {
-    const solicitacaoId = orcamento.solicitacaoId;
-    if (!acc[solicitacaoId]) acc[solicitacaoId] = [];
-    acc[solicitacaoId].push(orcamento);
-    return acc;
-  }, {} as Record<string, Orcamento[]>);
+  // Funções auxiliares
+  const handleSaveOrcamentoConsolidado = (orcamentoConsolidado: OrcamentoConsolidadoType) => {
+    orcamentoConsolidado.itens.forEach(item => {
+      const prestador = orcamentoConsolidado.prestador;
+      createOrcamento({
+        solicitacaoId: item.solicitacaoId,
+        prestador,
+        maoDeObra: item.maoDeObra,
+        materiais: item.materiais,
+        taxaAdm: orcamentoConsolidado.taxaAdm,
+        prazoExecucao: orcamentoConsolidado.prazoExecucao,
+        total: item.subtotal + (item.subtotal * (orcamentoConsolidado.taxaAdm / 100)),
+        isPrincipal: true,
+        dataOrcamento: orcamentoConsolidado.dataOrcamento
+      });
+    });
+    
+    setIsConsolidadoDialogOpen(false);
+    setSelectedImovelId('');
+  };
 
-  const selectedSolicitacao = selectedSolicitacaoId !== 'all'
-    ? getSolicitacaoInfo(selectedSolicitacaoId)
-    : null;
+  const openConsolidadoDialog = (imovelId: string) => {
+    setSelectedImovelId(imovelId);
+    setIsConsolidadoDialogOpen(true);
+  };
 
-  function getSolicitacaoInfo(solicitacaoId: string) {
-    return mockSolicitacoes.find(s => s.id === solicitacaoId);
-  }
+  const calculateTotal = () => {
+    const subtotal = newOrcamento.maoDeObra + newOrcamento.materiais;
+    const taxa = subtotal * (newOrcamento.taxaAdm / 100);
+    return subtotal + taxa;
+  };
+
+  const handleCreateOrcamento = (e: React.FormEvent) => {
+    e.preventDefault();
+    const prestador = mockPrestadores.find(p => p.id === newOrcamento.prestadorId);
+    if (!prestador) return;
+
+    createOrcamento({
+      ...newOrcamento,
+      prestador,
+      total: calculateTotal(),
+      dataOrcamento: new Date(newOrcamento.dataOrcamento)
+    });
+
+    setNewOrcamento({
+      solicitacaoId: '',
+      prestadorId: '',
+      maoDeObra: 0,
+      materiais: 0,
+      taxaAdm: 10,
+      prazoExecucao: 7,
+      dataOrcamento: new Date().toISOString().split('T')[0],
+      isPrincipal: false,
+      observacoes: ''
+    });
+    setIsDialogOpen(false);
+  };
+
+  const exportToCSV = () => {
+    const csvData = orcamentos.map(orc => ({
+      ID: orc.id,
+      Solicitacao: orc.solicitacaoId,
+      Prestador: orc.prestador.nome,
+      'Mao de Obra': orc.maoDeObra,
+      Materiais: orc.materiais,
+      'Taxa Admin': orc.taxaAdm,
+      Total: orc.total,
+      Prazo: orc.prazoExecucao,
+      Data: orc.dataOrcamento.toLocaleDateString('pt-BR'),
+      Principal: orc.isPrincipal ? 'Sim' : 'Não'
+    }));
+    
+    const csv = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orcamentos_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Orçamentos</h1>
           <p className="text-muted-foreground mt-1">
             Gerencie todos os orçamentos das solicitações
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Orçamento
+        <div className="flex gap-2">
+          {/* Toggle de Visualização */}
+          <div className="flex border rounded-lg p-1 bg-muted">
+            <Button
+              variant={viewMode === 'solicitacao' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('solicitacao')}
+              className="h-8"
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Por Solicitação
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl" overlayTransparent={true}>
-            <DialogHeader>
-              <DialogTitle>Novo Orçamento</DialogTitle>
-            </DialogHeader>
-            {/* Formulário básico de orçamento */}
-            <form className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Solicitação</label>
-                <select className="w-full border rounded px-2 py-1">
-                  {mockSolicitacoes.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      Imóvel: {s.imovelId} • {s.tipoManutencao}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Prestador</label>
-                <select className="w-full border rounded px-2 py-1">
-                  {mockPrestadores.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nome}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">Mão de Obra (R$)</label>
-                  <input type="number" className="w-full border rounded px-2 py-1" />
+            <Button
+              variant={viewMode === 'imovel' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('imovel')}
+              className="h-8"
+            >
+              <Building2 className="h-4 w-4 mr-1" />
+              Por Imóvel
+            </Button>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            onClick={() => setIsComparisonMode(!isComparisonMode)}
+            className={isComparisonMode ? 'bg-blue-50 border-blue-200' : ''}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            {isComparisonMode ? 'Sair da Comparação' : 'Comparar'}
+          </Button>
+          <Button variant="outline" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+          
+          {/* Dialog para Novo Orçamento */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Orçamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Calculator className="h-5 w-5" />
+                  Novo Orçamento
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateOrcamento} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Solicitação *</label>
+                    <select 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.solicitacaoId}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, solicitacaoId: e.target.value})}
+                      required
+                    >
+                      <option value="">Selecione uma solicitação</option>
+                      {mockSolicitacoes.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.imovelId} • {s.tipoManutencao} • {s.endereco}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Prestador *</label>
+                    <select 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.prestadorId}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, prestadorId: e.target.value})}
+                      required
+                    >
+                      <option value="">Selecione um prestador</option>
+                      {mockPrestadores.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome} • {p.especialidade}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">Materiais (R$)</label>
-                  <input type="number" className="w-full border rounded px-2 py-1" />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Mão de Obra (R$) *</label>
+                    <input 
+                      type="number" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.maoDeObra}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, maoDeObra: Number(e.target.value)})}
+                      min="0"
+                      step="0.01"
+                      placeholder="0,00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Materiais (R$) *</label>
+                    <input 
+                      type="number" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.materiais}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, materiais: Number(e.target.value)})}
+                      min="0"
+                      step="0.01"
+                      placeholder="0,00"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Taxa Admin (%) *</label>
+                    <input 
+                      type="number" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.taxaAdm}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, taxaAdm: Number(e.target.value)})}
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="10"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">Taxa Adm (%)</label>
-                  <input type="number" className="w-full border rounded px-2 py-1" />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Prazo Execução (dias) *</label>
+                    <input 
+                      type="number" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.prazoExecucao}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, prazoExecucao: Number(e.target.value)})}
+                      min="1"
+                      placeholder="7"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Data do Orçamento *</label>
+                    <input 
+                      type="date" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newOrcamento.dataOrcamento}
+                      onChange={(e) => setNewOrcamento({...newOrcamento, dataOrcamento: e.target.value})}
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">Prazo Execução (dias)</label>
-                  <input type="number" className="w-full border rounded px-2 py-1" />
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Observações</label>
+                  <textarea 
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                    value={newOrcamento.observacoes}
+                    onChange={(e) => setNewOrcamento({...newOrcamento, observacoes: e.target.value})}
+                    placeholder="Observações adicionais sobre o orçamento..."
+                  />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Data do Orçamento</label>
-                <input type="date" className="w-full border rounded px-2 py-1" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="principal" />
-                <label htmlFor="principal" className="text-sm">Marcar como principal</label>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button type="submit">Salvar</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="principal"
+                    checked={newOrcamento.isPrincipal}
+                    onCheckedChange={(checked) => setNewOrcamento({...newOrcamento, isPrincipal: !!checked})}
+                  />
+                  <label htmlFor="principal" className="text-sm font-medium">
+                    Marcar como orçamento principal
+                  </label>
+                </div>
+
+                {/* Calculadora em tempo real */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="h-5 w-5 text-blue-600" />
+                    <h3 className="font-semibold text-blue-900">Cálculo Automático</h3>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">Subtotal:</p>
+                      <p className="font-bold text-gray-900">
+                        R$ {(newOrcamento.maoDeObra + newOrcamento.materiais).toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Taxa Admin:</p>
+                      <p className="font-bold text-gray-900">
+                        R$ {((newOrcamento.maoDeObra + newOrcamento.materiais) * (newOrcamento.taxaAdm / 100)).toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Total Final:</p>
+                      <p className="font-bold text-2xl text-blue-600">
+                        R$ {calculateTotal().toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Valor/Dia:</p>
+                      <p className="font-bold text-gray-900">
+                        R$ {newOrcamento.prazoExecucao > 0 ? (calculateTotal() / newOrcamento.prazoExecucao).toFixed(2) : '0,00'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Orçamento
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4">
-        <div className="flex-1">
-          <Select value={selectedSolicitacaoId} onValueChange={setSelectedSolicitacaoId}>
-            <SelectTrigger className="w-full">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <SelectValue placeholder="Selecione uma solicitação para filtrar..." />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as solicitações</SelectItem>
-              {mockSolicitacoes.map((solicitacao) => (
-                <SelectItem key={solicitacao.id} value={solicitacao.id}>
-                  Imóvel: {solicitacao.imovelId} • {solicitacao.tipoManutencao} • {solicitacao.endereco}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por prestador..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-            disabled={selectedSolicitacaoId === 'all'}
-          />
-        </div>
-      </div>
-
-      {/* Selected Solicitation Info */}
-      {selectedSolicitacao && (
-        <Card className="bg-muted/50">
-          <CardContent className="p-4">
+      {/* Dashboard de Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 border-blue-300">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-foreground">{selectedSolicitacao.tipoManutencao}</h3>
-                <p className="text-sm text-muted-foreground">
-                  Imóvel: {selectedSolicitacao.imovelId} • {selectedSolicitacao.endereco}
-                </p>
+              <div className="space-y-2">
+                <p className="text-sm text-blue-700 font-semibold uppercase tracking-wide">Total de Orçamentos</p>
+                <p className="text-3xl font-bold text-blue-900">{statistics.total}</p>
               </div>
-              <Badge variant="secondary">
-                {orcamentos.filter(o => o.solicitacaoId === selectedSolicitacaoId).length} orçamento(s)
-              </Badge>
+              <div className="p-3 bg-blue-200 rounded-full">
+                <FileText className="h-6 w-6 text-blue-700" />
+              </div>
             </div>
           </CardContent>
         </Card>
+        
+        <Card className="bg-gradient-to-br from-green-50 via-green-100 to-green-200 border-green-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm text-green-700 font-semibold uppercase tracking-wide">Aprovados</p>
+                <p className="text-3xl font-bold text-green-900">{statistics.aprovados}</p>
+              </div>
+              <div className="p-3 bg-green-200 rounded-full">
+                <BarChart3 className="h-6 w-6 text-green-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-yellow-50 via-yellow-100 to-yellow-200 border-yellow-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm text-yellow-700 font-semibold uppercase tracking-wide">Pendentes</p>
+                <p className="text-3xl font-bold text-yellow-900">{statistics.pendentes}</p>
+              </div>
+              <div className="p-3 bg-yellow-200 rounded-full">
+                <Building2 className="h-6 w-6 text-yellow-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-purple-50 via-purple-100 to-purple-200 border-purple-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm text-purple-700 font-semibold uppercase tracking-wide">Valor Total</p>
+                <p className="text-3xl font-bold text-purple-900">R$ {statistics.valorTotal.toFixed(2)}</p>
+              </div>
+              <div className="p-3 bg-purple-200 rounded-full">
+                <Calculator className="h-6 w-6 text-purple-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Conteúdo Principal */}
+      {viewMode === 'imovel' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Agrupamento por Imóvel</h2>
+            <Badge variant="outline">
+              {imoveisAgrupados.length} imóveis encontrados
+            </Badge>
+          </div>
+          
+          <div className="grid gap-4">
+            {imoveisAgrupados.map((imovel) => (
+              <ImovelCard 
+                key={imovel.imovelId}
+                imovel={imovel}
+                orcamentos={orcamentos}
+                onOpenConsolidado={openConsolidadoDialog}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Lista de Orçamentos agrupados por solicitação */}
-      <div className="space-y-8">
-        {Object.keys(groupedOrcamentos).length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground">Nenhum orçamento encontrado.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          Object.entries(groupedOrcamentos).map(([solicitacaoId, orcamentos]) => {
-            const solicitacao = getSolicitacaoInfo(solicitacaoId);
-            return (
-              <div key={solicitacaoId} className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-foreground">
-                    Imóvel: {solicitacao?.imovelId} • {solicitacao?.tipoManutencao} • {solicitacao?.endereco}
-                  </h2>
-                  <Badge variant="secondary">{orcamentos.length} orçamento(s)</Badge>
-                </div>
-                <div className="space-y-4">
-                  {orcamentos.map((orcamento) => (
-                    <Card key={orcamento.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <CardTitle className="text-lg flex items-center gap-3">
-                              {solicitacao?.tipoManutencao}
-                              {orcamento.isPrincipal && (
-                                <Badge variant="success" className="gap-1">
-                                  <Star className="h-3 w-3" />
-                                  Principal
-                                </Badge>
-                              )}
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                              Prestador: {orcamento.prestador.nome} • Imóvel: {solicitacao?.imovelId}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Valores</p>
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">
-                                Mão de obra: R$ {orcamento.maoDeObra.toFixed(2)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Materiais: R$ {orcamento.materiais.toFixed(2)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Taxa adm ({orcamento.taxaAdm}%): R$ {((orcamento.maoDeObra + orcamento.materiais) * (orcamento.taxaAdm / 100)).toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Total</p>
-                            <p className="text-lg font-bold text-primary">
-                              R$ {orcamento.total.toFixed(2)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Prazo</p>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">
-                                {orcamento.prazoExecucao} dias
-                              </span>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Data Orçamento</p>
-                            <p className="text-sm text-muted-foreground">
-                              {orcamento.dataOrcamento.toLocaleDateString('pt-BR')}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-4 p-3 bg-muted rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">
-                                Contato: {orcamento.prestador.contato}
-                              </span>
-                            </div>
-                            {!orcamento.isPrincipal && (
-                              <Button size="sm" variant="outline" className="gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Escolher Principal
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+      {/* Dialog para Orçamento Consolidado */}
+      <Dialog open={isConsolidadoDialogOpen} onOpenChange={setIsConsolidadoDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Orçamento Consolidado</DialogTitle>
+          </DialogHeader>
+          {selectedImovelId && (
+            <OrcamentoConsolidado
+              imovelId={selectedImovelId}
+              onSave={handleSaveOrcamentoConsolidado}
+              onCancel={() => setIsConsolidadoDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

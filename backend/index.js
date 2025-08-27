@@ -1,30 +1,91 @@
-console.log('Backend iniciado!');
 const express = require('express');
-require('dotenv').config(); // <-- adicione esta linha
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-// Defina uma chave secreta forte em produção! Pode ser do .env
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+
+// Importar sistema de logs e validação
+const logger = require('./utils/logger');
+const { requestLogger, errorLogger } = require('./middleware/logging');
+const { 
+  validate, 
+  usuarioSchema, 
+  empresaSchema,
+  loginSchema,
+  usuarioUpdateSchema,
+  registroSchema,
+  solicitacaoSchema, 
+  prestadorSchema, 
+  orcamentoSchema 
+} = require('./schemas/validation');
+
+// Importar sistema de upload
+const { upload, handleUploadError, uploadsDir } = require('./middleware/upload');
+const FileManager = require('./utils/fileManager');
+
 const JWT_SECRET = process.env.JWT_SECRET || 'segredo_super_secreto';
 
 const app = express();
 const prisma = new PrismaClient();
+const fileManager = new FileManager(uploadsDir);
 
+// Configurações de segurança
+app.use(helmet());
 
-app.use((req, res, next) => {
-  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // máximo 100 requests por IP
+  message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }
 });
-app.use(cors());
-app.use(express.json());
+app.use('/api/', limiter);
 
-// Listar todos os usuários da empresa do usuário autenticado
+// Rate limiting específico para login
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // máximo 5 tentativas de login por IP
+  message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+});
+
+// Middlewares
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(requestLogger);
+
+// Middleware para proteger rotas
+function autenticarToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    logger.logAuth('Token não fornecido', { ip: req.ip, userAgent: req.get('User-Agent') });
+    return res.status(401).json({ error: 'Token não fornecido.' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, usuario) => {
+    if (err) {
+      logger.logAuth('Token inválido', { error: err.message, ip: req.ip });
+      return res.status(403).json({ error: 'Token inválido.' });
+    }
+    
+    logger.logAuth('Usuário autenticado', { userId: usuario.id, email: usuario.email });
+    req.usuario = usuario;
+    next();
+  });
+}
+
 // Listar todas as empresas e seus usuários (admin/master)
 app.get('/api/empresas', autenticarToken, async (req, res) => {
   try {
-    // Apenas master pode listar todas as empresas
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - não é master', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const empresas = await prisma.empresa.findMany({
       include: {
         usuarios: {
@@ -32,32 +93,45 @@ app.get('/api/empresas', autenticarToken, async (req, res) => {
         }
       }
     });
+    
+    logger.logDatabase('Empresas listadas', { count: empresas.length, userId: req.usuario.id });
     res.json({ empresas });
   } catch (err) {
+    logger.logError('Erro ao buscar empresas', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao buscar empresas.' });
   }
 });
 
 // Cadastrar nova empresa (admin/master)
-app.post('/api/empresas', autenticarToken, async (req, res) => {
+app.post('/api/empresas', autenticarToken, validate(empresaSchema), async (req, res) => {
   try {
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - criação de empresa', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const { nome } = req.body;
-    if (!nome) return res.status(400).json({ error: 'Nome da empresa obrigatório.' });
     const empresa = await prisma.empresa.create({ data: { nome } });
+    
+    logger.logDatabase('Empresa criada', { empresaId: empresa.id, nome, userId: req.usuario.id });
     res.status(201).json({ empresa });
   } catch (err) {
+    logger.logError('Erro ao criar empresa', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao criar empresa.' });
   }
 });
 
 // Cadastrar novo usuário em uma empresa (admin/master)
-app.post('/api/empresas/:empresaId/usuarios', autenticarToken, async (req, res) => {
+app.post('/api/empresas/:empresaId/usuarios', autenticarToken, validate(usuarioSchema), async (req, res) => {
   try {
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - criação de usuário', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const { empresaId } = req.params;
     const { nome, email, senha, isGestor } = req.body;
-    if (!nome || !email || !senha) return res.status(400).json({ error: 'Preencha todos os campos.' });
+    
     const usuario = await prisma.usuario.create({
       data: {
         nome,
@@ -67,33 +141,40 @@ app.post('/api/empresas/:empresaId/usuarios', autenticarToken, async (req, res) 
         empresaId
       }
     });
+    
+    logger.logDatabase('Usuário criado', { usuarioId: usuario.id, email, empresaId, createdBy: req.usuario.id });
     res.status(201).json({ usuario });
   } catch (err) {
     if (err.code === 'P2002') {
+      logger.logDatabase('Tentativa de criar usuário com email duplicado', { email: req.body.email });
       return res.status(400).json({ error: 'E-mail já cadastrado.' });
     }
+    logger.logError('Erro ao criar usuário', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao criar usuário.' });
   }
 });
+
+// Listar usuários da empresa
 app.get('/api/usuarios', autenticarToken, async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany({
       where: { empresaId: req.usuario.empresaId },
       select: { id: true, nome: true, email: true, isAdmin: true }
     });
+    
+    logger.logDatabase('Usuários listados', { count: usuarios.length, empresaId: req.usuario.empresaId });
     res.json({ usuarios });
   } catch (err) {
+    logger.logError('Erro ao buscar usuários', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao buscar usuários.' });
   }
 });
 
 // Cadastro de empresa e usuário admin
-app.post('/api/register', async (req, res) => {
-  const { nomeEmpresa, nome, email, senha } = req.body;
-  if (!nomeEmpresa || !nome || !email || !senha) {
-    return res.status(400).json({ error: 'Preencha todos os campos.' });
-  }
+app.post('/api/register', validate(registroSchema), async (req, res) => {
   try {
+    const { nomeEmpresa, nome, email, senha } = req.body;
+    
     const empresa = await prisma.empresa.create({
       data: {
         nome: nomeEmpresa,
@@ -102,32 +183,35 @@ app.post('/api/register', async (req, res) => {
             nome,
             email,
             senha: await bcrypt.hash(senha, 10),
-            isAdmin: true // O primeiro usuário cadastrado é admin
+            isAdmin: true
           },
         },
       },
       include: { usuarios: true },
     });
+    
+    logger.logDatabase('Empresa e usuário admin registrados', { 
+      empresaId: empresa.id, 
+      nomeEmpresa, 
+      email 
+    });
+    
     res.status(201).json({ empresa });
   } catch (err) {
     if (err.code === 'P2002') {
+      logger.logDatabase('Tentativa de registro com email duplicado', { email: req.body.email });
       return res.status(400).json({ error: 'E-mail já cadastrado.' });
     }
+    logger.logError('Erro ao registrar', err);
     res.status(500).json({ error: 'Erro ao cadastrar.' });
   }
 });
 
-
 // Login de usuário com JWT
-
-// Login master OU login normal
-app.post('/api/login', async (req, res) => {
-  const { email, id, senha } = req.body;
-  if ((!email && !id) || !senha) {
-    return res.status(400).json({ error: 'Preencha todos os campos.' });
-  }
+app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => {
   try {
-    // Permitir login por email OU id
+    const { email, id, senha } = req.body;
+    
     let usuario;
     if (email) {
       usuario = await prisma.usuario.findUnique({
@@ -139,7 +223,8 @@ app.post('/api/login', async (req, res) => {
           senha: true,
           isAdmin: true,
           isMaster: true,
-          empresa: true
+          empresa: true,
+          empresaId: true
         }
       });
     } else if (id) {
@@ -152,14 +237,23 @@ app.post('/api/login', async (req, res) => {
           senha: true,
           isAdmin: true,
           isMaster: true,
-          empresa: true
+          empresa: true,
+          empresaId: true
         }
       });
     }
-    if (!usuario) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+    
+    if (!usuario) {
+      logger.logAuth('Tentativa de login com credenciais inválidas', { email, id, ip: req.ip });
+      return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+    }
+    
     const senhaOk = await bcrypt.compare(senha, usuario.senha);
-    if (!senhaOk) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
-    // Gerar JWT incluindo isMaster
+    if (!senhaOk) {
+      logger.logAuth('Tentativa de login com senha incorreta', { userId: usuario.id, email: usuario.email, ip: req.ip });
+      return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+    }
+    
     const token = jwt.sign(
       {
         id: usuario.id,
@@ -172,6 +266,7 @@ app.post('/api/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+    
     const usuarioRetorno = {
       id: usuario.id,
       nome: usuario.nome,
@@ -180,120 +275,99 @@ app.post('/api/login', async (req, res) => {
       isAdmin: usuario.isAdmin,
       isMaster: usuario.isMaster
     };
-    console.log('LOGIN usuario retornado:', usuarioRetorno);
+    
+    logger.logAuth('Login realizado com sucesso', { 
+      userId: usuario.id, 
+      email: usuario.email, 
+      ip: req.ip 
+    });
+    
     res.json({
       usuario: usuarioRetorno,
       token
     });
   } catch (err) {
+    logger.logError('Erro ao fazer login', err, { ip: req.ip });
     res.status(500).json({ error: 'Erro ao fazer login.' });
   }
 });
 
-// Middleware para proteger rotas
-function autenticarToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  console.log('Authorization header:', authHeader);
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) {
-    console.log('Token não fornecido.');
-    return res.status(401).json({ error: 'Token não fornecido.' });
-  }
-  jwt.verify(token, JWT_SECRET, (err, usuario) => {
-    if (err) {
-      console.log('Token inválido:', err.message);
-      return res.status(403).json({ error: 'Token inválido.' });
-    }
-    console.log('Usuário autenticado pelo token:', usuario);
-    req.usuario = usuario;
-    next();
-  });
-}
-
-// Exemplo de rota protegida
+// Rota protegida para dados do usuário
 app.get('/api/me', autenticarToken, async (req, res) => {
-  // req.usuario contém os dados do token
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: req.usuario.id },
-    include: { empresa: true }
-  });
-  if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
-  res.json({ usuario });
-});
-
-// Criação automática do usuário master e empresa Master
-async function criarMaster() {
-  const masterEmail = 'leommaster';
-  const masterSenha = 'l1e2o3ariele';
-  const masterNome = 'Leo Master';
-  const masterEmpresaNome = 'Master';
-
-  // Verifica se já existe usuário master
-  const jaExiste = await prisma.usuario.findFirst({ where: { email: masterEmail, isMaster: true } });
-  if (jaExiste) return;
-
-  // Cria empresa Master se não existir
-  let empresa = await prisma.empresa.findFirst({ where: { nome: masterEmpresaNome } });
-  if (!empresa) {
-    empresa = await prisma.empresa.create({ data: { nome: masterEmpresaNome } });
-  }
-
-  // Cria usuário master
-  await prisma.usuario.create({
-    data: {
-      nome: masterNome,
-      email: masterEmail,
-      senha: await require('bcryptjs').hash(masterSenha, 10),
-      isAdmin: true,
-      isMaster: true,
-      empresaId: empresa.id
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.usuario.id },
+      include: { empresa: true }
+    });
+    
+    if (!usuario) {
+      logger.logDatabase('Usuário não encontrado', { userId: req.usuario.id });
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
-  });
-  console.log('Usuário master criado com sucesso!');
-}
-
-criarMaster();
-
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`API rodando em http://localhost:${PORT}`);
+    
+    res.json({ usuario });
+  } catch (err) {
+    logger.logError('Erro ao buscar dados do usuário', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
 });
 
 // Atualizar papel gestor do usuário
 app.patch('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
   try {
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - atualização de usuário', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const { empresaId, usuarioId } = req.params;
     const { isGestor } = req.body;
-    console.log('PATCH usuarioId:', usuarioId, 'empresaId:', empresaId, 'isGestor:', isGestor);
-    // Buscar usuário antes do update
-    const usuarioAntes = await prisma.usuario.findUnique({ where: { id: usuarioId } });
-    console.log('Usuário antes do update:', usuarioAntes);
+    
     const usuario = await prisma.usuario.update({
       where: { id: usuarioId },
       data: { isGestor: !!isGestor }
     });
-    console.log('Usuário após update:', usuario);
+    
+    logger.logDatabase('Papel de gestor atualizado', { 
+      usuarioId, 
+      empresaId, 
+      isGestor: !!isGestor, 
+      updatedBy: req.usuario.id 
+    });
+    
     res.json({ usuario });
   } catch (err) {
-    console.error('Erro ao atualizar usuário:', err);
+    logger.logError('Erro ao atualizar usuário', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao atualizar usuário.', details: err.message });
   }
 });
 
 // Editar nome/email do usuário
-app.put('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
+app.put('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, validate(usuarioUpdateSchema), async (req, res) => {
   try {
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - edição de usuário', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const { usuarioId } = req.params;
     const { nome, email } = req.body;
+    
     const usuario = await prisma.usuario.update({
       where: { id: usuarioId },
       data: { nome, email }
     });
+    
+    logger.logDatabase('Usuário editado', { 
+      usuarioId, 
+      nome, 
+      email, 
+      editedBy: req.usuario.id 
+    });
+    
     res.json({ usuario });
   } catch (err) {
-    console.error('Erro ao editar usuário:', err);
+    logger.logError('Erro ao editar usuário', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao editar usuário.' });
   }
 });
@@ -301,12 +375,199 @@ app.put('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (
 // Excluir usuário
 app.delete('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async (req, res) => {
   try {
-    if (!req.usuario.isMaster) return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!req.usuario.isMaster) {
+      logger.logAuth('Acesso negado - exclusão de usuário', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
     const { usuarioId } = req.params;
+    
     await prisma.usuario.delete({ where: { id: usuarioId } });
+    
+    logger.logDatabase('Usuário excluído', { 
+      usuarioId, 
+      deletedBy: req.usuario.id 
+    });
+    
     res.json({ success: true });
   } catch (err) {
-    console.error('Erro ao excluir usuário:', err);
+    logger.logError('Erro ao excluir usuário', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao excluir usuário.' });
   }
 });
+
+// Criação automática do usuário master e empresa Master
+async function criarMaster() {
+  try {
+    const masterEmail = process.env.MASTER_EMAIL || 'leommaster';
+    const masterSenha = process.env.MASTER_PASSWORD || 'l1e2o3ariele';
+    const masterNome = process.env.MASTER_NAME || 'Leo Master';
+    const masterEmpresaNome = process.env.MASTER_COMPANY || 'Master';
+
+    const jaExiste = await prisma.usuario.findFirst({ 
+      where: { email: masterEmail, isMaster: true } 
+    });
+    
+    if (jaExiste) {
+      logger.info('Usuário master já existe');
+      return;
+    }
+
+    let empresa = await prisma.empresa.findFirst({ where: { nome: masterEmpresaNome } });
+    if (!empresa) {
+      empresa = await prisma.empresa.create({ data: { nome: masterEmpresaNome } });
+      logger.logDatabase('Empresa Master criada', { empresaId: empresa.id });
+    }
+
+    await prisma.usuario.create({
+      data: {
+        nome: masterNome,
+        email: masterEmail,
+        senha: await bcrypt.hash(masterSenha, 10),
+        isAdmin: true,
+        isMaster: true,
+        empresaId: empresa.id
+      }
+    });
+    
+    logger.logDatabase('Usuário master criado com sucesso', { email: masterEmail });
+  } catch (err) {
+    logger.logError('Erro ao criar usuário master', err);
+  }
+}
+
+// Middleware de tratamento de erros
+app.use(errorLogger);
+
+// Inicialização
+criarMaster();
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  logger.info(`API rodando em http://localhost:${PORT}`);
+});
+
+// Servir arquivos estáticos (uploads)
+app.use('/api/files', express.static(uploadsDir));
+
+// === ROTAS DE UPLOAD ===
+
+// Upload de arquivos
+app.post('/api/upload/:tipo', autenticarToken, upload.array('files', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    }
+
+    const { tipo } = req.params;
+    const { entityId, entityType } = req.body; // ID da entidade (solicitação, orçamento, etc.)
+
+    const uploadedFiles = req.files.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path,
+      url: fileManager.getPublicUrl(file.filename, tipo)
+    }));
+
+    // Registrar no banco se tiver entityId
+    if (entityId && entityType) {
+      // Aqui você pode criar uma tabela 'arquivos' para rastrear uploads
+      // Por enquanto, apenas logamos
+      logger.logDatabase('Arquivos enviados', {
+        entityId,
+        entityType,
+        files: uploadedFiles.map(f => f.filename),
+        userId: req.usuario.id
+      });
+    }
+
+    logger.info('Upload realizado com sucesso', {
+      tipo,
+      fileCount: uploadedFiles.length,
+      userId: req.usuario.id
+    });
+
+    res.json({
+      success: true,
+      files: uploadedFiles
+    });
+  } catch (error) {
+    logger.logError('Erro no upload', error, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro interno no upload' });
+  }
+});
+
+// Listar arquivos de um tipo
+app.get('/api/files/:tipo', autenticarToken, async (req, res) => {
+  try {
+    const { tipo } = req.params;
+    const files = await fileManager.listFiles(tipo);
+    
+    const filesWithUrls = files.map(file => ({
+      ...file,
+      url: fileManager.getPublicUrl(file.filename, tipo)
+    }));
+
+    res.json({ files: filesWithUrls });
+  } catch (error) {
+    logger.logError('Erro ao listar arquivos', error, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao listar arquivos' });
+  }
+});
+
+// Deletar arquivo
+app.delete('/api/files/:tipo/:filename', autenticarToken, async (req, res) => {
+  try {
+    const { tipo, filename } = req.params;
+    
+    // Verificar se arquivo existe
+    const exists = await fileManager.fileExists(filename, tipo);
+    if (!exists) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+
+    const deleted = await fileManager.deleteFile(filename, tipo);
+    
+    if (deleted) {
+      logger.logDatabase('Arquivo deletado', {
+        filename,
+        tipo,
+        userId: req.usuario.id
+      });
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Erro ao deletar arquivo' });
+    }
+  } catch (error) {
+    logger.logError('Erro ao deletar arquivo', error, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao deletar arquivo' });
+  }
+});
+
+// Obter informações de um arquivo específico
+app.get('/api/files/:tipo/:filename/info', autenticarToken, async (req, res) => {
+  try {
+    const { tipo, filename } = req.params;
+    const info = await fileManager.getFileInfo(filename, tipo);
+    
+    if (!info.exists) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+
+    res.json({
+      ...info,
+      url: fileManager.getPublicUrl(filename, tipo)
+    });
+  } catch (error) {
+    logger.logError('Erro ao obter info do arquivo', error, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao obter informações do arquivo' });
+  }
+});
+
+// Middleware de tratamento de erros do upload
+app.use(handleUploadError);
+
+// Middleware de tratamento de erros
+app.use(errorLogger);
