@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -17,13 +16,14 @@ import Login from "./pages/Login";
 import Perfil from "./pages/Perfil";
 import Register from "./pages/Register";
 import Admin from "./pages/Admin";
+import SolicitacaoInquilino from "./pages/SolicitacaoInquilino";
 
 const queryClient = new QueryClient();
 
-
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuth();
-  if (!token) return <Navigate to="/login" replace />;
+  // Se não há token, o useAuth já redireciona, então apenas renderizamos o children
+  // O redirecionamento é feito pelo useEffect no useAuth
   return children;
 }
 
@@ -38,7 +38,6 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -50,18 +49,17 @@ const App = () => (
           }>
             <Route path="/" element={<Dashboard />} />
             <Route path="/solicitacoes" element={<Solicitacoes />} />
+            <Route path="/nova-solicitacao" element={<SolicitacaoInquilino />} />
             <Route path="/orcamentos" element={<Orcamentos />} />
             <Route path="/execucao" element={<Execucao />} />
             <Route path="/prestadores" element={<Prestadores />} />
             <Route path="/financeiro" element={<Financeiro />} />
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/admin" element={
-              <ProtectedRoute>
+              <AdminGuard>
                 <Admin />
-              </ProtectedRoute>
+              </AdminGuard>
             } />
-            {/* Rota de admin removida para reestruturação */}
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

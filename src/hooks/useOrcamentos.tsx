@@ -252,7 +252,7 @@ const useOrcamentos = () => {
       precoMax: 999999,
       prazoMax: 365,
       sortBy: 'data-desc',
-      sortOrder: 'desc'
+      // Remove sortOrder since it's not in OrcamentoFilters type
     });
   };
 

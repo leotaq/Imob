@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockSolicitacoes, mockOrcamentos } from '@/data/mockData';
+import { useDashboard } from '@/hooks/useDashboard';
 import {
   ClipboardList,
   DollarSign,
@@ -54,52 +54,21 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-// Cores para os gráficos
-const COLORS = {
-  primary: '#3b82f6',
-  success: '#10b981',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  secondary: '#6b7280',
-  accent: '#8b5cf6'
-};
-
 const Dashboard = () => {
-  const totalSolicitacoes = mockSolicitacoes.length;
-  const abertas = mockSolicitacoes.filter(s => s.status === 'aberta').length;
-  const emAndamento = mockSolicitacoes.filter(s => s.status === 'execucao').length;
-  const concluidas = mockSolicitacoes.filter(s => s.status === 'concluida').length;
-  const totalOrcamentos = mockOrcamentos.reduce((acc, orc) => acc + orc.total, 0);
-  const orcamentosAprovados = mockOrcamentos.filter(o => o.situacao === 'aprovado').length;
-  const taxaConclusao = Math.round((concluidas / totalSolicitacoes) * 100);
-  const tempoMedioResolucao = 5.2; // dias (calculado)
+  const {
+    metrics,
+    chartData,
+    solicitacoesPendentes,
+    isLoading
+  } = useDashboard();
 
-  // Dados para gráfico de status (Pizza)
-  const statusData = [
-    { name: 'Abertas', value: abertas, color: COLORS.warning },
-    { name: 'Em Execução', value: emAndamento, color: COLORS.primary },
-    { name: 'Concluídas', value: concluidas, color: COLORS.success },
-    { name: 'Canceladas', value: mockSolicitacoes.filter(s => s.status === 'cancelada').length, color: COLORS.danger }
-  ];
-
-  // Dados para gráfico mensal (últimos 6 meses)
-  const monthlyData = [
-    { mes: 'Jan', solicitacoes: 12, concluidas: 10, valor: 15000 },
-    { mes: 'Fev', solicitacoes: 15, concluidas: 13, valor: 18500 },
-    { mes: 'Mar', solicitacoes: 18, concluidas: 16, valor: 22000 },
-    { mes: 'Abr', solicitacoes: 14, concluidas: 12, valor: 19500 },
-    { mes: 'Mai', solicitacoes: 20, concluidas: 18, valor: 28000 },
-    { mes: 'Jun', solicitacoes: 16, concluidas: 14, valor: 21500 }
-  ];
-
-  // Dados por categoria
-  const categoryData = [
-    { categoria: 'Elétrica', quantidade: 8, valor: 12500 },
-    { categoria: 'Hidráulica', quantidade: 6, valor: 9800 },
-    { categoria: 'Pintura', quantidade: 4, valor: 6200 },
-    { categoria: 'Estrutural', quantidade: 3, valor: 15600 },
-    { categoria: 'Outros', quantidade: 5, valor: 7400 }
-  ];
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-muted-foreground">Carregando dados...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -121,10 +90,10 @@ const Dashboard = () => {
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalSolicitacoes}</div>
+            <div className="text-2xl font-bold text-foreground">{metrics.totalSolicitacoes}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-success" />
-              +12% desde último mês
+              Dados em tempo real
             </p>
           </CardContent>
         </Card>
@@ -137,9 +106,9 @@ const Dashboard = () => {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">{taxaConclusao}%</div>
+            <div className="text-2xl font-bold text-success">{metrics.taxaConclusao.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground">
-              Meta: 85% (Atingida!)
+              Meta: 85% {metrics.taxaConclusao >= 85 ? '(Atingida!)' : '(Em progresso)'}
             </p>
           </CardContent>
         </Card>
@@ -152,9 +121,9 @@ const Dashboard = () => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{tempoMedioResolucao} dias</div>
+            <div className="text-2xl font-bold text-primary">{metrics.tempoMedioResolucao.toFixed(0)} dias</div>
             <p className="text-xs text-muted-foreground">
-              -0.8 dias vs. mês anterior
+              Baseado em dados reais
             </p>
           </CardContent>
         </Card>
@@ -162,16 +131,16 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Receita Total
+              Total Orçamentos
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              R$ {totalOrcamentos.toLocaleString('pt-BR')}
+              {metrics.totalOrcamentos}
             </div>
             <p className="text-xs text-muted-foreground">
-              {orcamentosAprovados} orçamentos aprovados
+              {metrics.orcamentosAprovados} aprovados
             </p>
           </CardContent>
         </Card>
@@ -189,9 +158,9 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={monthlyData}>
+              <AreaChart data={chartData.monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="mes" className="text-xs" />
+                <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
                 <Tooltip 
                   contentStyle={{ 
@@ -205,19 +174,19 @@ const Dashboard = () => {
                   type="monotone" 
                   dataKey="solicitacoes" 
                   stackId="1" 
-                  stroke={COLORS.primary} 
-                  fill={COLORS.primary}
+                  stroke="#3b82f6" 
+                  fill="#3b82f6"
                   fillOpacity={0.6}
                   name="Solicitações"
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="concluidas" 
+                  dataKey="orcamentos" 
                   stackId="2" 
-                  stroke={COLORS.success} 
-                  fill={COLORS.success}
+                  stroke="#10b981" 
+                  fill="#10b981"
                   fillOpacity={0.6}
-                  name="Concluídas"
+                  name="Orçamentos"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -236,7 +205,7 @@ const Dashboard = () => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={statusData}
+                  data={chartData.statusData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -245,7 +214,7 @@ const Dashboard = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {statusData.map((entry, index) => (
+                  {chartData.statusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -271,7 +240,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryData}>
+              <BarChart data={chartData.categoryData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis dataKey="categoria" className="text-xs" />
                 <YAxis className="text-xs" />
@@ -283,8 +252,8 @@ const Dashboard = () => {
                   }}
                 />
                 <Legend />
-                <Bar dataKey="quantidade" fill={COLORS.primary} name="Quantidade" />
-                <Bar dataKey="valor" fill={COLORS.accent} name="Valor (R$)" />
+                <Bar dataKey="total" fill="#3b82f6" name="Total" />
+                <Bar dataKey="concluidas" fill="#10b981" name="Concluídas" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -300,10 +269,8 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockSolicitacoes
-                .filter(s => s.status !== 'concluida')
-                .slice(0, 5)
-                .map((solicitacao) => (
+              {solicitacoesPendentes.length > 0 ? (
+                solicitacoesPendentes.map((solicitacao) => (
                   <div
                     key={solicitacao.id}
                     className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
@@ -320,7 +287,12 @@ const Dashboard = () => {
                       {getStatusLabel(solicitacao.status)}
                     </Badge>
                   </div>
-                ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma solicitação pendente
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -333,7 +305,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-600">Eficiência Operacional</p>
-                <p className="text-2xl font-bold text-blue-700">94.2%</p>
+                <p className="text-2xl font-bold text-blue-700">{metrics.taxaConclusao.toFixed(1)}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-500" />
             </div>
@@ -344,8 +316,8 @@ const Dashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-600">Satisfação Cliente</p>
-                <p className="text-2xl font-bold text-green-700">4.8/5.0</p>
+                <p className="text-sm font-medium text-green-600">Orçamentos Aprovados</p>
+                <p className="text-2xl font-bold text-green-700">{metrics.orcamentosAprovados}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -356,10 +328,10 @@ const Dashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-600">ROI Médio</p>
-                <p className="text-2xl font-bold text-purple-700">127%</p>
+                <p className="text-sm font-medium text-purple-600">Tempo Médio</p>
+                <p className="text-2xl font-bold text-purple-700">{metrics.tempoMedioResolucao.toFixed(0)}d</p>
               </div>
-              <DollarSign className="h-8 w-8 text-purple-500" />
+              <Clock className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>

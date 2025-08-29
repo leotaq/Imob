@@ -8,11 +8,13 @@ import {
   Settings,
   Users,
   Wrench,
-  BarChart3
+  BarChart3,
+  Plus
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Nova Solicitação', href: '/nova-solicitacao', icon: Plus },
   { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList },
   { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign },
   { name: 'Execução', href: '/execucao', icon: Wrench },
@@ -24,8 +26,7 @@ export const Sidebar = () => {
   const location = useLocation();
   const { usuario, logout } = useAuth();
 
-  // DEBUG: mostrar usuario no console
-  console.log('Sidebar usuario:', usuario, 'isAdmin:', usuario?.isAdmin);
+
 
   return (
     <div className="flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">

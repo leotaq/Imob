@@ -8,21 +8,112 @@ datasource db {
 }
 
 model Empresa {
-  id        String   @id @default(uuid())
-  nome      String
-  usuarios  Usuario[]
-  createdAt DateTime @default(now())
+  id           String        @id @default(uuid())
+  nome         String
+  usuarios     Usuario[]
+  imoveis      Imovel[]
+  solicitacoes Solicitacao[]
+  tiposServico TipoServico[]
+  createdAt    DateTime      @default(now())
 }
 
 model Usuario {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  senha      String
-  nome       String
-  isAdmin    Boolean  @default(false)
-  isMaster   Boolean  @default(false)
-  isGestor   Boolean  @default(false)
-  empresaId  String
-  empresa    Empresa  @relation(fields: [empresaId], references: [id])
-  createdAt  DateTime @default(now())
+  id           String        @id @default(uuid())
+  email        String        @unique
+  senha        String
+  nome         String
+  isAdmin      Boolean       @default(false)
+  isMaster     Boolean       @default(false)
+  isGestor     Boolean       @default(false)
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  createdAt    DateTime      @default(now())
+}
+
+model Imovel {
+  id           String        @id @default(uuid())
+  rua          String
+  numero       String
+  complemento  String?
+  bairro       String
+  cidade       String
+  cep          String
+  estado       String
+  tipo         String        // casa, apartamento, comercial, etc
+  area         String?
+  quartos      String?
+  banheiros    String?
+  andar        String?
+  temElevador  String?
+  observacoes  String?
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  createdAt    DateTime      @default(now())
+}
+
+model Solicitacao {
+  id                String             @id @default(uuid())
+  // Dados do solicitante
+  nomeSolicitante   String
+  emailSolicitante  String
+  telefoneSolicitante String?
+  tipoSolicitante   String             // inquilino, proprietario, imobiliaria, terceiros
+  
+  // Dados do imóvel
+  imovelId          String
+  imovel            Imovel             @relation(fields: [imovelId], references: [id])
+  
+  // Dados da solicitação
+  prazoDesejado     DateTime?
+  observacoesGerais String?
+  status            String             @default("pendente") // pendente, em_andamento, concluida, cancelada
+  prioridade        String             @default("media")    // baixa, media, alta
+  
+  // Relacionamentos
+  usuarioId         String?
+  usuario           Usuario?           @relation(fields: [usuarioId], references: [id])
+  empresaId         String
+  empresa           Empresa            @relation(fields: [empresaId], references: [id])
+  servicos          ServicoSolicitado[]
+  anexos            AnexoSolicitacao[]
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model TipoServico {
+  id                String             @id @default(uuid())
+  nome              String
+  categoria         String
+  descricao         String?
+  ativo             Boolean            @default(true)
+  empresaId         String
+  empresa           Empresa            @relation(fields: [empresaId], references: [id])
+  servicosSolicitados ServicoSolicitado[]
+  createdAt         DateTime           @default(now())
+}
+
+model ServicoSolicitado {
+  id             String        @id @default(uuid())
+  solicitacaoId  String
+  solicitacao    Solicitacao   @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  tipoServicoId  String
+  tipoServico    TipoServico   @relation(fields: [tipoServicoId], references: [id])
+  descricao      String
+  prioridade     String        @default("media") // baixa, media, alta
+  observacoes    String?
+  createdAt      DateTime      @default(now())
+}
+
+model AnexoSolicitacao {
+  id            String      @id @default(uuid())
+  solicitacaoId String
+  solicitacao   Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  nomeArquivo   String
+  caminhoArquivo String
+  tamanho       Int
+  tipo          String
+  createdAt     DateTime    @default(now())
 }

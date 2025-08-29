@@ -71,19 +71,35 @@ export function useFileUpload(options: UseFileUploadOptions) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro no upload');
+        const contentType = response.headers.get('content-type');
+        let errorMessage = 'Erro no upload';
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const error = await response.json();
+            errorMessage = error.error || errorMessage;
+          } catch {
+            // Se falhar ao fazer parse, usa mensagem padrão
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-      setFiles(prev => [...prev, ...result.files]);
-
-      toast({
-        title: "Upload realizado",
-        description: `${result.files.length} arquivo(s) enviado(s) com sucesso`
-      });
-
-      return result.files;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const result = await response.json();
+        setFiles(prev => [...prev, ...(result.files || [])]);
+        
+        toast({
+          title: "Upload realizado",
+          description: `${result.files?.length || 0} arquivo(s) enviado(s) com sucesso`
+        });
+        
+        return result.files;
+      } else {
+         throw new Error('Resposta do servidor não é JSON válido');
+       }
     } catch (error) {
       console.error('Erro no upload:', error);
       toast({
@@ -108,8 +124,19 @@ export function useFileUpload(options: UseFileUploadOptions) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao deletar arquivo');
+        const contentType = response.headers.get('content-type');
+        let errorMessage = 'Erro ao deletar arquivo';
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const error = await response.json();
+            errorMessage = error.error || errorMessage;
+          } catch {
+            // Se falhar ao fazer parse, usa mensagem padrão
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       setFiles(prev => prev.filter(f => f.filename !== filename));
@@ -138,11 +165,22 @@ export function useFileUpload(options: UseFileUploadOptions) {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        setFiles(result.files);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const result = await response.json();
+          setFiles(result.files || []);
+        } else {
+          console.warn('Resposta não é JSON válido');
+          setFiles([]);
+        }
+      } else {
+        // Se a resposta não for ok, não tenta fazer parse JSON
+        console.warn(`Erro ao carregar arquivos: ${response.status}`);
+        setFiles([]);
       }
     } catch (error) {
       console.error('Erro ao carregar arquivos:', error);
+      setFiles([]);
     }
   };
 

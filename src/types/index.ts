@@ -1,39 +1,123 @@
+export interface Usuario {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  tipo: 'inquilino' | 'proprietario' | 'gestor' | 'prestador' | 'admin';
+  documento?: string;
+  endereco?: string;
+  ativo: boolean;
+  dataCriacao: Date;
+}
+
+export interface Imovel {
+  id: string;
+  endereco: string;
+  cidade: string;
+  cep: string;
+  tipo: 'apartamento' | 'casa' | 'comercial' | 'terreno';
+  proprietarioId: string;
+  inquilinoId?: string;
+  gestorId?: string;
+  ativo: boolean;
+}
+
+export interface TipoServico {
+  id: string;
+  nome: string;
+  categoria: 'eletrica' | 'hidraulica' | 'pintura' | 'limpeza' | 'jardinagem' | 'outros';
+  descricao: string;
+  ativo: boolean;
+}
+
+export interface ServicoSolicitado {
+  id: string;
+  tipoServicoId: string;
+  descricao: string;
+  prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
+  observacoes?: string;
+}
+
 export interface Solicitacao {
   id: string;
   imovelId: string;
-  tipoSolicitante: 'inquilino' | 'proprietario' | 'imobiliaria' | 'terceiros';
-  nome: string;
-  telefone: string;
-  endereco: string;
-  cidade: string;
-  tipoManutencao: string;
+  solicitanteId: string;
+  tipoSolicitante: 'inquilino' | 'proprietario' | 'gestor' | 'terceiros';
+  servicos: ServicoSolicitado[];
+  status: 'pendente' | 'orcamento' | 'aprovada' | 'em_andamento' | 'concluida' | 'cancelada';
   dataSolicitacao: Date;
-  prazoFinal: Date;
-  descricao: string;
-  status: 'aberta' | 'orcamento' | 'aprovada' | 'execucao' | 'concluida' | 'cancelada';
+  prazoDesejado?: Date;
+  observacoesGerais?: string;
+  anexos?: {
+    filename: string;
+    originalName: string;
+    mimetype: string;
+    size: number;
+    url: string;
+  }[];
 }
 
 export interface Prestador {
   id: string;
+  usuarioId: string;
   nome: string;
   contato: string;
   tipoPessoa: 'cpf' | 'cnpj';
   documento: string; // CPF ou CNPJ
   tipoPagamento: 'pix' | 'transferencia' | 'dinheiro' | 'cartao';
   notaRecibo: 'nota' | 'recibo';
+  especialidades: string[]; // IDs dos tipos de serviço que oferece
+  avaliacaoMedia?: number;
+  ativo: boolean;
+  dataCadastro: Date;
+}
+
+export interface ItemOrcamentoServico {
+  id: string;
+  servicoSolicitadoId: string;
+  descricaoServico: string;
+  materiais: ItemMaterial[];
+  maoDeObra: number;
+  tempoEstimado: number; // em horas
+  observacoes?: string;
+}
+
+export interface ItemMaterial {
+  id: string;
+  descricao: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  unidade: string; // ex: 'un', 'kg', 'm²', 'litros'
 }
 
 export interface Orcamento {
   id: string;
   solicitacaoId: string;
-  prestador: Prestador;
-  maoDeObra: number;
-  materiais: number;
+  prestadorId: string;
+  itensServico: ItemOrcamentoServico[];
   taxaAdm: number; // percentual
   prazoExecucao: number; // em dias
+  dataVisita?: Date;
+  observacoesGerais?: string;
+  subtotalMateriais: number;
+  subtotalMaoDeObra: number;
+  subtotal: number;
+  valorTaxaAdm: number;
   total: number;
-  isPrincipal: boolean;
+  status: 'rascunho' | 'enviado' | 'aprovado' | 'rejeitado' | 'cancelado';
   dataOrcamento: Date;
+  dataAprovacao?: Date;
+}
+
+export interface AvaliacaoPrestador {
+  id: string;
+  prestadorId: string;
+  solicitacaoId: string;
+  avaliadorId: string;
+  nota: number; // 1 a 5
+  comentario?: string;
+  dataAvaliacao: Date;
 }
 
 export interface Execucao {
@@ -56,6 +140,32 @@ export interface HistoricoStatus {
   observacao: string;
 }
 
+// Novas interfaces para comentários
+export interface Comentario {
+  id: string;
+  solicitacaoId: string;
+  usuario: string;
+  texto: string;
+  data: Date;
+  tipo: 'comentario' | 'status' | 'sistema';
+  anexos?: string[]; // URLs dos anexos
+}
+
+export interface HistoricoCompleto {
+  id: string;
+  solicitacaoId: string;
+  tipo: 'comentario' | 'status' | 'criacao' | 'edicao' | 'anexo';
+  usuario: string;
+  data: Date;
+  descricao: string;
+  detalhes?: {
+    statusAnterior?: string;
+    statusNovo?: string;
+    camposAlterados?: string[];
+    comentario?: string;
+    anexos?: string[];
+  };
+}
 
 export interface OrcamentoConsolidado {
   id: string;

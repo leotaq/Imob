@@ -569,5 +569,232 @@ app.get('/api/files/:tipo/:filename/info', autenticarToken, async (req, res) => 
 // Middleware de tratamento de erros do upload
 app.use(handleUploadError);
 
+// ==========================================
+// ROTAS PARA SOLICITAÇÕES
+// ==========================================
+
+// Criar nova solicitação
+app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
+  try {
+    const {
+      solicitante,
+      imovel,
+      servicos,
+      prazoDesejado,
+      observacoesGerais,
+      anexos
+    } = req.body;
+
+    // Log dos dados recebidos para debug
+    logger.info('Dados recebidos para criação de solicitação:', {
+      solicitante,
+      imovel,
+      servicos,
+      prazoDesejado,
+      observacoesGerais,
+      userId: req.usuario.id
+    });
+
+    // Criar ou encontrar imóvel
+    let imovelRecord = await prisma.imovel.findFirst({
+      where: {
+        rua: imovel.endereco.rua,
+        numero: imovel.endereco.numero,
+        bairro: imovel.endereco.bairro,
+        cidade: imovel.endereco.cidade,
+        empresaId: req.usuario.empresaId
+      }
+    });
+
+    if (!imovelRecord) {
+      imovelRecord = await prisma.imovel.create({
+        data: {
+          rua: imovel.endereco.rua,
+          numero: imovel.endereco.numero,
+          complemento: imovel.endereco.complemento,
+          bairro: imovel.endereco.bairro,
+          cidade: imovel.endereco.cidade,
+          cep: imovel.endereco.cep,
+          estado: imovel.endereco.estado,
+          tipo: imovel.tipo,
+          area: imovel.area?.toString() || null,
+          quartos: imovel.quartos?.toString() || null,
+          banheiros: imovel.banheiros?.toString() || null,
+          andar: imovel.andar?.toString() || null,
+          temElevador: imovel.temElevador?.toString() || null,
+          observacoes: imovel.observacoes,
+          empresaId: req.usuario.empresaId
+        }
+      });
+    }
+
+    // Criar solicitação
+    const solicitacao = await prisma.solicitacao.create({
+      data: {
+        nomeSolicitante: solicitante.nome,
+        emailSolicitante: solicitante.email,
+        telefoneSolicitante: solicitante.telefone,
+        tipoSolicitante: solicitante.tipo,
+        imovelId: imovelRecord.id,
+        prazoDesejado: prazoDesejado ? new Date(prazoDesejado) : null,
+        observacoesGerais,
+        usuarioId: req.usuario.id,
+        empresaId: req.usuario.empresaId,
+        servicos: {
+          create: servicos.map(servico => ({
+            tipoServicoId: servico.tipoServicoId,
+            descricao: servico.descricao,
+            prioridade: servico.prioridade,
+            observacoes: servico.observacoes
+          }))
+        }
+      },
+      include: {
+        imovel: true,
+        servicos: {
+          include: {
+            tipoServico: true
+          }
+        },
+        anexos: true
+      }
+    });
+
+    logger.logDatabase('Solicitação criada', { 
+      solicitacaoId: solicitacao.id, 
+      imovelId: imovelRecord.id,
+      userId: req.usuario.id 
+    });
+
+    res.status(201).json({ solicitacao });
+  } catch (err) {
+    logger.logError('Erro ao criar solicitação', err, { 
+      userId: req.usuario.id,
+      errorMessage: err.message,
+      errorCode: err.code,
+      errorMeta: err.meta
+    });
+    console.error('Erro detalhado:', {
+      message: err.message,
+      code: err.code,
+      meta: err.meta,
+      stack: err.stack
+    });
+    res.status(500).json({ error: 'Erro ao criar solicitação.' });
+  }
+});
+
+// Listar solicitações
+app.get('/api/solicitacoes', autenticarToken, async (req, res) => {
+  try {
+    const solicitacoes = await prisma.solicitacao.findMany({
+      where: { empresaId: req.usuario.empresaId },
+      include: {
+        imovel: true,
+        servicos: {
+          include: {
+            tipoServico: true
+          }
+        },
+        anexos: true,
+        usuario: {
+          select: { id: true, nome: true, email: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ solicitacoes });
+  } catch (err) {
+    logger.logError('Erro ao buscar solicitações', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao buscar solicitações.' });
+  }
+});
+
+// Buscar solicitação por ID
+app.get('/api/solicitacoes/:id', autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const solicitacao = await prisma.solicitacao.findFirst({
+      where: { 
+        id,
+        empresaId: req.usuario.empresaId 
+      },
+      include: {
+        imovel: true,
+        servicos: {
+          include: {
+            tipoServico: true
+          }
+        },
+        anexos: true,
+        usuario: {
+          select: { id: true, nome: true, email: true }
+        }
+      }
+    });
+
+    if (!solicitacao) {
+      return res.status(404).json({ error: 'Solicitação não encontrada.' });
+    }
+
+    res.json({ solicitacao });
+  } catch (err) {
+    logger.logError('Erro ao buscar solicitação', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao buscar solicitação.' });
+  }
+});
+
+// Atualizar status da solicitação
+app.patch('/api/solicitacoes/:id/status', autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const solicitacao = await prisma.solicitacao.update({
+      where: { id },
+      data: { status },
+      include: {
+        imovel: true,
+        servicos: {
+          include: {
+            tipoServico: true
+          }
+        }
+      }
+    });
+
+    logger.logDatabase('Status da solicitação atualizado', { 
+      solicitacaoId: id, 
+      novoStatus: status,
+      userId: req.usuario.id 
+    });
+
+    res.json({ solicitacao });
+  } catch (err) {
+    logger.logError('Erro ao atualizar status da solicitação', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao atualizar status da solicitação.' });
+  }
+});
+
+// Listar tipos de serviço
+app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
+  try {
+    const tiposServico = await prisma.tipoServico.findMany({
+      where: { 
+        empresaId: req.usuario.empresaId,
+        ativo: true 
+      },
+      orderBy: { nome: 'asc' }
+    });
+
+    res.json({ tiposServico });
+  } catch (err) {
+    logger.logError('Erro ao buscar tipos de serviço', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao buscar tipos de serviço.' });
+  }
+});
+
 // Middleware de tratamento de erros
 app.use(errorLogger);

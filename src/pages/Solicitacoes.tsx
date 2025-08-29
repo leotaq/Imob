@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { Plus, MessageSquare, History, Paperclip, Eye, Download } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Solicitacao } from '@/types';
 import { useSolicitacoes } from '@/hooks/useSolicitacoes';
+import { useComentarios } from '@/hooks/useComentarios';
 import SolicitacaoFiltersComponent from '@/components/SolicitacaoFilters';
 import SolicitacaoCard from '@/components/SolicitacaoCard';
+import SolicitacaoHistorico from '@/components/SolicitacaoHistorico';
 import { useToast } from '@/hooks/use-toast';
+import { Search, Grid, List } from 'lucide-react';
+import SolicitacaoTable from '@/components/SolicitacaoTable';
+import Pagination from '@/components/Pagination';
+import { FileUpload } from '@/components/FileUpload';
+import { useFileUpload } from '@/hooks/useFileUpload';
+import { ExportDialog } from '@/components/ExportDialog';
 
 // Função para gerar ID único
 const generateUniqueId = () => {
@@ -137,7 +145,7 @@ const solicitacaoSchema = z.object({
 
 type SolicitacaoFormData = z.infer<typeof solicitacaoSchema>;
 
-const Solicitacoes = () => {
+const Solicitacoes: React.FC = () => {
   const {
     solicitacoes,
     allSolicitacoes,
@@ -146,15 +154,61 @@ const Solicitacoes = () => {
     setFilters,
     createSolicitacao,
     updateSolicitacao,
-    deleteSolicitacao
+    deleteSolicitacao,
+    changeStatus
   } = useSolicitacoes();
 
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<Solicitacao | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Novos estados para as melhorias
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  
   const { toast } = useToast();
+  
+  // Estado para upload de arquivos
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  // Hook para comentários e histórico da solicitação selecionada
+  const {
+    comentarios,
+    historico,
+    loading: comentariosLoading,
+    addComentario,
+    addHistoricoStatus,
+    addHistoricoEdicao
+  } = useComentarios(selectedSolicitacao?.id || '');
+
+  // Filtrar solicitações por termo de busca
+  const filteredSolicitacoes = useMemo(() => {
+    return solicitacoes.filter(solicitacao => 
+      solicitacao.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitacao.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitacao.imovelId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitacao.endereco.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      solicitacao.cidade.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (solicitacao.descricao && solicitacao.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [solicitacoes, searchTerm]);
+
+  // Paginação
+  const totalPages = Math.ceil(filteredSolicitacoes.length / pageSize);
+  const paginatedSolicitacoes = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredSolicitacoes.slice(startIndex, startIndex + pageSize);
+  }, [filteredSolicitacoes, currentPage, pageSize]);
+
+  // Reset página quando filtros mudam
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
 
   const form = useForm<SolicitacaoFormData>({
     resolver: zodResolver(solicitacaoSchema),
@@ -191,6 +245,11 @@ const Solicitacoes = () => {
     setViewDialogOpen(true);
   };
 
+  const handleViewHistorico = (solicitacao: Solicitacao) => {
+    setSelectedSolicitacao(solicitacao);
+    setHistoricoDialogOpen(true);
+  };
+
   const handleEdit = (solicitacao: Solicitacao) => {
     setSelectedSolicitacao(solicitacao);
     setEditDialogOpen(true);
@@ -216,7 +275,21 @@ const Solicitacoes = () => {
   const handleEditSave = async (updatedData: Partial<Solicitacao>) => {
     if (selectedSolicitacao) {
       try {
+        // Detectar campos alterados
+        const camposAlterados: string[] = [];
+        Object.keys(updatedData).forEach(key => {
+          if (updatedData[key] !== selectedSolicitacao[key]) {
+            camposAlterados.push(key);
+          }
+        });
+        
         await updateSolicitacao(selectedSolicitacao.id, updatedData);
+        
+        // Adicionar ao histórico
+        if (camposAlterados.length > 0) {
+          addHistoricoEdicao(camposAlterados);
+        }
+        
         setEditDialogOpen(false);
         setSelectedSolicitacao(null);
       } catch (error) {
@@ -225,174 +298,247 @@ const Solicitacoes = () => {
     }
   };
 
+  const handleStatusChange = async (solicitacao: Solicitacao, newStatus: string) => {
+    try {
+      const statusAnterior = solicitacao.status;
+      await changeStatus(solicitacao.id, newStatus);
+      
+      // Adicionar ao histórico quando o status mudar
+      if (selectedSolicitacao?.id === solicitacao.id) {
+        addHistoricoStatus(statusAnterior, newStatus);
+      }
+    } catch (error) {
+      // Error já tratado no hook
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* Cabeçalho com busca e alternância de visualização */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Solicitações</h1>
           <p className="text-muted-foreground mt-1">
             Gerencie todas as solicitações de manutenção com filtros avançados
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Solicitação
+        
+        <div className="flex items-center gap-3">
+          {/* Busca Rápida */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar solicitações..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-64"
+            />
+          </div>
+          
+          {/* Botão de Exportação */}
+          <ExportDialog solicitacoes={filteredSolicitacoes}>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Exportar
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Nova Solicitação de Manutenção</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="imovelId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>ID do Imóvel *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: APT-001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tipoSolicitante"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Solicitante *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+          </ExportDialog>
+          
+          {/* Alternância de Visualização */}
+          <div className="flex border rounded-lg p-1">
+            <Button
+              variant={viewMode === 'cards' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('cards')}
+              className="h-8 px-3"
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+              className="h-8 px-3"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Botão Nova Solicitação */}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Nova Solicitação
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Nova Solicitação de Manutenção</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="imovelId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ID do Imóvel *</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
+                            <Input placeholder="Ex: APT-001" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="inquilino">Inquilino</SelectItem>
-                            <SelectItem value="proprietario">Proprietário</SelectItem>
-                            <SelectItem value="imobiliaria">Imobiliária</SelectItem>
-                            <SelectItem value="terceiros">Terceiros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tipoSolicitante"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Solicitante *</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="inquilino">Inquilino</SelectItem>
+                              <SelectItem value="proprietario">Proprietário</SelectItem>
+                              <SelectItem value="imobiliaria">Imobiliária</SelectItem>
+                              <SelectItem value="terceiros">Terceiros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="nome"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nome do solicitante" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="telefone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Telefone *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="(11) 99999-9999" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="endereco"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Endereço *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Endereço completo" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="cidade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cidade *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Cidade" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tipoManutencao"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Manutenção *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Elétrica, Hidráulica..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="prazoFinal"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prazo Final *</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
                   <FormField
                     control={form.control}
-                    name="nome"
+                    name="descricao"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome *</FormLabel>
+                        <FormLabel>Descrição</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome do solicitante" {...field} />
+                          <textarea 
+                            className="w-full min-h-[100px] px-3 py-2 border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 rounded-md"
+                            placeholder="Descreva detalhadamente o problema ou solicitação..."
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="telefone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Telefone *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="(11) 99999-9999" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="endereco"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Endereço *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Endereço completo" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="cidade"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cidade *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Cidade" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tipoManutencao"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Manutenção *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ex: Elétrica, Hidráulica..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="prazoFinal"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prazo Final *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="descricao"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descrição</FormLabel>
-                      <FormControl>
-                        <textarea
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          placeholder="Descreva o problema ou serviço necessário..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={loading}>
-                    {loading ? 'Criando...' : 'Criar Solicitação'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  
+                  {/* Upload de Arquivos */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium">Anexos (Opcional)</label>
+                    <FileUpload
+                      onFilesUploaded={setUploadedFiles}
+                      maxFiles={5}
+                      acceptedTypes={['image/*', 'application/pdf', '.doc,.docx']}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-3">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={loading}>
+                      {loading ? 'Criando...' : 'Criar Solicitação'}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filtros Avançados */}
@@ -400,10 +546,10 @@ const Solicitacoes = () => {
         filters={filters}
         onFiltersChange={setFilters}
         totalCount={allSolicitacoes.length}
-        filteredCount={solicitacoes.length}
+        filteredCount={filteredSolicitacoes.length}
       />
 
-      {/* Lista de Solicitações */}
+      {/* Lista de Solicitações com alternância de visualização */}
       <div className="space-y-4">
         {loading && (
           <Card>
@@ -413,37 +559,87 @@ const Solicitacoes = () => {
           </Card>
         )}
         
-        {!loading && solicitacoes.length === 0 ? (
+        {!loading && paginatedSolicitacoes.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center">
               <p className="text-muted-foreground">
-                {allSolicitacoes.length === 0 
-                  ? 'Nenhuma solicitação encontrada. Crie a primeira!' 
-                  : 'Nenhuma solicitação corresponde aos filtros aplicados.'}
+                {searchTerm 
+                  ? `Nenhuma solicitação encontrada para "${searchTerm}".`
+                  : allSolicitacoes.length === 0 
+                    ? 'Nenhuma solicitação encontrada. Crie a primeira!' 
+                    : 'Nenhuma solicitação corresponde aos filtros aplicados.'}
               </p>
             </CardContent>
           </Card>
         ) : (
-          solicitacoes.map((solicitacao) => (
-            <SolicitacaoCard
-              key={solicitacao.id}
-              solicitacao={solicitacao}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))
+          <>
+            {viewMode === 'cards' ? (
+              <div className="space-y-4">
+                {paginatedSolicitacoes.map((solicitacao) => (
+                  <SolicitacaoCard
+                    key={solicitacao.id}
+                    solicitacao={solicitacao}
+                    onView={handleView}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onViewHistorico={handleViewHistorico} // Nova prop
+                    handleStatusChange={handleStatusChange}
+                  />
+                ))}
+              </div>
+            ) : (
+              <SolicitacaoTable
+                solicitacoes={paginatedSolicitacoes}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onViewHistorico={handleViewHistorico} // Nova prop
+                handleStatusChange={handleStatusChange}
+              />
+            )}
+            
+            {/* Paginação */}
+            {filteredSolicitacoes.length > 0 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={filteredSolicitacoes.length}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(newPageSize) => {
+                    setPageSize(newPageSize);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Modal Visualizar Solicitação */}
+      {/* Modal Visualizar Solicitação - ATUALIZADO COM ANEXOS */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes da Solicitação</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              Detalhes da Solicitação
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setViewDialogOpen(false);
+                  handleViewHistorico(selectedSolicitacao!);
+                }}
+                className="gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Histórico
+              </Button>
+            </DialogTitle>
           </DialogHeader>
           {selectedSolicitacao && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">ID da Solicitação</p>
@@ -475,7 +671,7 @@ const Solicitacoes = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <p className="text-sm">{selectedSolicitacao.status}</p>
+                  <p className="text-sm capitalize">{selectedSolicitacao.status}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Data Solicitação</p>
@@ -486,14 +682,104 @@ const Solicitacoes = () => {
                   <p className="text-sm">{selectedSolicitacao.prazoFinal.toLocaleDateString('pt-BR')}</p>
                 </div>
               </div>
+              
               {selectedSolicitacao.descricao && (
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-2">Descrição</p>
-                  <div className="p-2 bg-muted rounded-lg max-h-20 overflow-y-auto">
+                  <div className="p-3 bg-muted rounded-lg max-h-32 overflow-y-auto">
                     <p className="text-sm">{selectedSolicitacao.descricao}</p>
                   </div>
                 </div>
               )}
+              
+              {/* Seção de Anexos */}
+              {selectedSolicitacao.anexos && selectedSolicitacao.anexos.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    Anexos ({selectedSolicitacao.anexos.length})
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {selectedSolicitacao.anexos.map((anexo, index) => (
+                      <div key={index} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2 mb-2">
+                          {anexo.mimetype?.startsWith('image/') ? (
+                            <div className="h-8 w-8 bg-blue-100 rounded flex items-center justify-center">
+                              <Eye className="h-4 w-4 text-blue-600" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
+                              <Paperclip className="h-4 w-4 text-gray-600" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{anexo.originalName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {anexo.size ? `${(anexo.size / 1024).toFixed(1)} KB` : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-7 text-xs"
+                          onClick={() => window.open(anexo.url, '_blank')}
+                        >
+                          Visualizar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Histórico e Comentários - CORRIGIDO */}
+      <Dialog open={historicoDialogOpen} onOpenChange={setHistoricoDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Histórico e Comentários - {selectedSolicitacao?.id}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedSolicitacao && (
+            <div className="space-y-4 overflow-hidden">
+              {/* Resumo da Solicitação */}
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-muted-foreground">Imóvel:</span>
+                    <p>{selectedSolicitacao.imovelId}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Tipo:</span>
+                    <p>{selectedSolicitacao.tipoManutencao}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Solicitante:</span>
+                    <p>{selectedSolicitacao.nome}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-muted-foreground">Status:</span>
+                    <p className="capitalize">{selectedSolicitacao.status}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Componente de Histórico */}
+              <div className="flex-1 overflow-hidden">
+                <SolicitacaoHistorico
+                  solicitacaoId={selectedSolicitacao.id}
+                  comentarios={comentarios}
+                  historico={historico}
+                  onAddComentario={addComentario}
+                  loading={comentariosLoading}
+                />
+              </div>
             </div>
           )}
         </DialogContent>

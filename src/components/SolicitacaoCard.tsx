@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Eye, Edit, Trash2, Calendar, MapPin, User, Phone, 
-  Clock, AlertTriangle, CheckCircle, XCircle 
+  Clock, AlertTriangle, CheckCircle, XCircle, ArrowRight, MessageSquare 
 } from 'lucide-react';
 import { Solicitacao } from '@/types';
 
@@ -13,6 +13,8 @@ interface SolicitacaoCardProps {
   onView: (solicitacao: Solicitacao) => void;
   onEdit: (solicitacao: Solicitacao) => void;
   onDelete: (solicitacao: Solicitacao) => void;
+  onViewHistorico: (solicitacao: Solicitacao) => void; // Tornar obrigatória
+  handleStatusChange: (solicitacao: Solicitacao, newStatus: string) => void;
 }
 
 const getStatusColor = (status: string) => {
@@ -61,14 +63,38 @@ const getTipoSolicitanteLabel = (tipo: string) => {
   }
 };
 
+const getNextStatusOptions = (currentStatus: string) => {
+  switch (currentStatus) {
+    case 'aberta':
+      return [{ value: 'orcamento', label: 'Solicitar Orçamento', color: 'secondary' }];
+    case 'orcamento':
+      return [
+        { value: 'aprovada', label: 'Aprovar', color: 'primary' },
+        { value: 'cancelada', label: 'Cancelar', color: 'destructive' }
+      ];
+    case 'aprovada':
+      return [{ value: 'execucao', label: 'Iniciar Execução', color: 'primary' }];
+    case 'execucao':
+      return [{ value: 'concluida', label: 'Concluir', color: 'success' }];
+    case 'concluida':
+    case 'cancelada':
+      return [];
+    default:
+      return [];
+  }
+};
+
 const SolicitacaoCard: React.FC<SolicitacaoCardProps> = ({
   solicitacao,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  onViewHistorico,
+  handleStatusChange
 }) => {
   const isUrgent = new Date(solicitacao.prazoFinal) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   const isOverdue = new Date(solicitacao.prazoFinal) < new Date() && solicitacao.status !== 'concluida';
+  const nextStatusOptions = getNextStatusOptions(solicitacao.status);
 
   return (
     <Card className={`hover:shadow-md transition-all duration-200 ${
@@ -114,6 +140,15 @@ const SolicitacaoCard: React.FC<SolicitacaoCardProps> = ({
           <div className="flex gap-0.5">
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onView(solicitacao)}>
               <Eye className="h-3 w-3" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 w-7 p-0" 
+              onClick={() => onViewHistorico(solicitacao)}
+              title="Ver histórico e comentários"
+            >
+              <MessageSquare className="h-3 w-3" />
             </Button>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(solicitacao)}>
               <Edit className="h-3 w-3" />
@@ -161,6 +196,25 @@ const SolicitacaoCard: React.FC<SolicitacaoCardProps> = ({
             </p>
           </div>
         </div>
+        
+        {/* Botões de Transição de Status */}
+        {nextStatusOptions.length > 0 && (
+          <div className="flex gap-1 mb-2 flex-wrap">
+            {nextStatusOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={option.color as any}
+                size="sm"
+                className="h-6 text-xs px-2 flex items-center gap-1"
+                onClick={() => handleStatusChange(solicitacao, option.value)}
+              >
+                <ArrowRight className="h-3 w-3" />
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        )}
+        
         {solicitacao.descricao && (
           <div className="p-1.5 bg-muted/50 rounded">
             <p className="text-xs text-foreground line-clamp-1">

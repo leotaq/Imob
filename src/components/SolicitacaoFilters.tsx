@@ -53,14 +53,7 @@ const SolicitacaoFiltersComponent: React.FC<SolicitacaoFiltersProps> = ({
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Mostrando {filteredCount} de {totalCount} solicitações</span>
-          {hasActiveFilters && (
-            <Badge variant="secondary" className="text-xs">
-              Filtros ativos
-            </Badge>
-          )}
-        </div>
+
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Busca */}
