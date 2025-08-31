@@ -1,19 +1,33 @@
-# 🚀 Deploy no Vercel - ImobiGestor
+# Guia de Deploy Full-Stack no Vercel
 
-## 📋 Pré-requisitos
+## Configurações do Projeto
 
-### 1. ✅ Projeto já está preparado:
-- ✅ Código limpo e organizado
-- ✅ 28 arquivos temporários removidos
-- ✅ Configuração `vercel.json` criada
-- ✅ Código commitado no GitHub
+### Framework Detection
+- **Framework**: Vite
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Root Directory**: `./` (raiz do projeto)
 
-### 2. 🗄️ Banco de Dados
-Você precisará de um banco PostgreSQL em produção. Opções recomendadas:
-- **Neon** (gratuito): https://neon.tech
-- **Supabase** (gratuito): https://supabase.com
-- **Railway** (gratuito): https://railway.app
-- **PlanetScale** (MySQL, mas compatível)
+### Arquitetura do Deploy
+
+Este projeto está configurado para deploy full-stack no Vercel:
+- **Frontend**: Build estático com Vite (React + TypeScript)
+- **Backend**: Função serverless Node.js (`backend/index.js`)
+- **Database**: PostgreSQL (Neon/Supabase recomendados)
+- **ORM**: Prisma
+
+### Estrutura de Arquivos
+
+```
+├── vercel.json          # Configuração do Vercel
+├── package.json         # Dependências unificadas
+├── prisma/
+│   └── schema.prisma    # Schema do banco
+├── backend/
+│   ├── index.js         # API serverless
+│   └── ...              # Utilitários e middleware
+└── src/                 # Frontend React
+```
 
 ## 🎯 Passos para Deploy
 
