@@ -115,6 +115,7 @@ const SolicitacaoCard: React.FC<SolicitacaoCardProps> = ({
                 {getStatusIcon(solicitacao.status)}
                 {getStatusLabel(solicitacao.status)}
               </Badge>
+
               {isOverdue && (
                 <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
                   Atrasada

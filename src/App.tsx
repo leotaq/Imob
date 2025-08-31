@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./hooks/useAuth";
+import { useViewMode } from "./hooks/useViewMode";
 import { Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Solicitacoes from "./pages/Solicitacoes";
@@ -17,6 +18,8 @@ import Perfil from "./pages/Perfil";
 import Register from "./pages/Register";
 import Admin from "./pages/Admin";
 import SolicitacaoInquilino from "./pages/SolicitacaoInquilino";
+
+import ConfiguracaoPermissoes from "./pages/ConfiguracaoPermissoes";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +37,19 @@ function AdminGuard({ children }: { children: JSX.Element }) {
   return children;
 }
 
+// Componente para redirecionar baseado no viewMode
+function HomeRedirect() {
+  const { viewMode } = useViewMode();
+  
+  // Se for usuário comum, redireciona para nova solicitação
+  if (viewMode === 'usuario') {
+    return <Navigate to="/solicitacao-inquilino" replace />;
+  }
+  
+  // Para outros tipos, mostra o dashboard
+  return <Dashboard />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -42,14 +58,16 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
           <Route element={
             <ProtectedRoute>
               <Layout />
             </ProtectedRoute>
           }>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<HomeRedirect />} />
             <Route path="/solicitacoes" element={<Solicitacoes />} />
             <Route path="/nova-solicitacao" element={<SolicitacaoInquilino />} />
+            <Route path="/solicitacao-inquilino" element={<SolicitacaoInquilino />} />
             <Route path="/orcamentos" element={<Orcamentos />} />
             <Route path="/execucao" element={<Execucao />} />
             <Route path="/prestadores" element={<Prestadores />} />
@@ -60,6 +78,7 @@ const App = () => (
                 <Admin />
               </AdminGuard>
             } />
+            <Route path="/configuracao-permissoes" element={<ConfiguracaoPermissoes />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

@@ -79,6 +79,8 @@ function autenticarToken(req, res, next) {
 }
 
 // Listar todas as empresas e seus usuários (admin/master)
+
+
 app.get('/api/empresas', autenticarToken, async (req, res) => {
   try {
     if (!req.usuario.isMaster) {
@@ -89,7 +91,7 @@ app.get('/api/empresas', autenticarToken, async (req, res) => {
     const empresas = await prisma.empresa.findMany({
       include: {
         usuarios: {
-          select: { id: true, nome: true, email: true, isGestor: true }
+          select: { id: true, nome: true, email: true, isGestor: true, permissoes: true }
         }
       }
     });
@@ -171,32 +173,126 @@ app.get('/api/usuarios', autenticarToken, async (req, res) => {
 });
 
 // Cadastro de empresa e usuário admin
+// Função para gerar código único de usuário
+async function gerarCodigoUsuario() {
+  const totalUsuarios = await prisma.usuario.count();
+  let codigo;
+  let tentativas = 0;
+  
+  do {
+    const numero = (totalUsuarios + tentativas + 1).toString().padStart(3, '0');
+    codigo = `USR${numero}`;
+    
+    const existeCodigo = await prisma.usuario.findUnique({
+      where: { codigo }
+    });
+    
+    if (!existeCodigo) break;
+    tentativas++;
+  } while (tentativas < 100);
+  
+  return codigo;
+}
+
 app.post('/api/register', validate(registroSchema), async (req, res) => {
   try {
-    const { nomeEmpresa, nome, email, senha } = req.body;
+    const { nome, email, telefone, senha, codigoUsuario, tipoUsuario, prestador } = req.body;
     
-    const empresa = await prisma.empresa.create({
-      data: {
-        nome: nomeEmpresa,
-        usuarios: {
-          create: {
-            nome,
-            email,
-            senha: await bcrypt.hash(senha, 10),
-            isAdmin: true
-          },
+    // Debug: Log dos dados recebidos
+    console.log('🔍 DEBUG - Dados recebidos no registro:');
+    console.log('  tipoUsuario:', tipoUsuario);
+    console.log('  codigoUsuario:', codigoUsuario);
+    console.log('  prestador:', prestador);
+    
+    // Verificar se o código personalizado já existe
+    if (codigoUsuario) {
+      const codigoExistente = await prisma.usuario.findUnique({
+        where: { codigo: codigoUsuario }
+      });
+      
+      if (codigoExistente) {
+        logger.logDatabase('Tentativa de registro com código duplicado', { codigo: codigoUsuario });
+        return res.status(400).json({ error: 'Código de usuário já está em uso. Escolha outro.' });
+      }
+    }
+    
+    // Usar código personalizado ou gerar automaticamente
+    const codigo = codigoUsuario || await gerarCodigoUsuario();
+    
+    if (tipoUsuario === 'prestador') {
+      // Registrar prestador sem empresa
+      const usuario = await prisma.usuario.create({
+        data: {
+          nome,
+          email,
+          telefone,
+          senha: await bcrypt.hash(senha, 10),
+          codigo,
+          isAdmin: false,
+          empresaId: null,
+          prestador: {
+            create: {
+              nome,
+              contato: telefone || email,
+              tipoPessoa: prestador.tipoPessoa,
+              documento: prestador.documento,
+              tipoPagamento: prestador.tipoPagamento,
+              notaRecibo: prestador.notaRecibo,
+              especialidades: prestador.especialidades || []
+            }
+          }
         },
-      },
-      include: { usuarios: true },
-    });
-    
-    logger.logDatabase('Empresa e usuário admin registrados', { 
-      empresaId: empresa.id, 
-      nomeEmpresa, 
-      email 
-    });
-    
-    res.status(201).json({ empresa });
+        include: {
+          prestador: true
+        }
+      });
+      
+      logger.logDatabase('Prestador registrado', { 
+        usuarioId: usuario.id,
+        email,
+        codigo,
+        tipoPessoa: prestador.tipoPessoa
+      });
+      
+      res.status(201).json({ 
+        usuario: {
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email,
+          codigo: usuario.codigo,
+          tipo: 'prestador'
+        }
+      });
+    } else {
+      // Registrar usuário comum sem empresa
+      const usuario = await prisma.usuario.create({
+        data: {
+          nome,
+          email,
+          telefone,
+          senha: await bcrypt.hash(senha, 10),
+          codigo,
+          isAdmin: false,
+          empresaId: null
+        }
+      });
+      
+      logger.logDatabase('Usuário registrado', { 
+        usuarioId: usuario.id,
+        email,
+        codigo
+      });
+      
+      res.status(201).json({ 
+        usuario: {
+          id: usuario.id,
+          nome: usuario.nome,
+          email: usuario.email,
+          codigo: usuario.codigo,
+          tipo: 'usuario'
+        }
+      });
+    }
   } catch (err) {
     if (err.code === 'P2002') {
       logger.logDatabase('Tentativa de registro com email duplicado', { email: req.body.email });
@@ -210,7 +306,7 @@ app.post('/api/register', validate(registroSchema), async (req, res) => {
 // Login de usuário com JWT
 app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => {
   try {
-    const { email, id, senha } = req.body;
+    const { email, codigo, senha } = req.body;
     
     let usuario;
     if (email) {
@@ -218,6 +314,7 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
         where: { email },
         select: {
           id: true,
+          codigo: true,
           nome: true,
           email: true,
           senha: true,
@@ -227,11 +324,12 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
           empresaId: true
         }
       });
-    } else if (id) {
+    } else if (codigo) {
       usuario = await prisma.usuario.findUnique({
-        where: { id },
+        where: { codigo },
         select: {
           id: true,
+          codigo: true,
           nome: true,
           email: true,
           senha: true,
@@ -244,7 +342,7 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
     }
     
     if (!usuario) {
-      logger.logAuth('Tentativa de login com credenciais inválidas', { email, id, ip: req.ip });
+      logger.logAuth('Tentativa de login com credenciais inválidas', { email, codigo, ip: req.ip });
       return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
     }
     
@@ -396,6 +494,62 @@ app.delete('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, asyn
   }
 });
 
+// Endpoint para atualizar permissões de usuário
+app.put('/api/empresas/:empresaId/usuarios/:usuarioId/permissoes', autenticarToken, async (req, res) => {
+  try {
+    const { empresaId, usuarioId } = req.params;
+    const { permissoes } = req.body;
+    const { usuario } = req;
+
+    // Verificar se o usuário é master
+    if (!usuario.isMaster) {
+      return res.status(403).json({ error: 'Acesso negado. Apenas usuários master podem configurar permissões.' });
+    }
+
+    // Validar se permissoes é um array
+    if (!Array.isArray(permissoes)) {
+      return res.status(400).json({ error: 'Permissões devem ser um array' });
+    }
+
+    // Verificar se o usuário existe e pertence à empresa
+    const usuarioExistente = await prisma.usuario.findFirst({
+      where: {
+        id: usuarioId,
+        empresaId: empresaId
+      }
+    });
+
+    if (!usuarioExistente) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    // Verificar se o usuário é gestor
+    if (!usuarioExistente.isGestor) {
+      return res.status(400).json({ error: 'Permissões só podem ser configuradas para gestores' });
+    }
+
+    // Atualizar as permissões
+    const usuarioAtualizado = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { permissoes: permissoes }
+    });
+
+    logger.info(`Permissões atualizadas para usuário ${usuarioId} por ${usuario.id}`);
+    res.json({ 
+      message: 'Permissões atualizadas com sucesso',
+      usuario: {
+        id: usuarioAtualizado.id,
+        nome: usuarioAtualizado.nome,
+        email: usuarioAtualizado.email,
+        permissoes: usuarioAtualizado.permissoes
+      }
+    });
+  } catch (error) {
+    logger.error('Erro ao atualizar permissões:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Criação automática do usuário master e empresa Master
 async function criarMaster() {
   try {
@@ -435,6 +589,102 @@ async function criarMaster() {
     logger.logError('Erro ao criar usuário master', err);
   }
 }
+
+// Rotas para Execução
+app.get('/api/execucao', autenticarToken, async (req, res) => {
+  try {
+    const { usuario } = req;
+    
+    const whereClause = {
+      empresaId: usuario.empresaId,
+      status: {
+        in: ['aprovada', 'execucao', 'concluida']
+      }
+    };
+    
+    // Se for prestador, só pode ver execuções onde tem orçamento aprovado
+    if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
+      // Buscar o prestador associado ao usuário
+      const prestador = await prisma.prestador.findFirst({
+        where: { usuarioId: usuario.id }
+      });
+      
+      if (!prestador) {
+        return res.json({ execucoes: [] });
+      }
+      
+      // Buscar solicitações onde o prestador tem orçamento aprovado
+      const orcamentosAprovados = await prisma.orcamento.findMany({
+        where: {
+          prestadorId: prestador.id,
+          status: 'aprovado'
+        },
+        select: { solicitacaoId: true }
+      });
+      
+      const solicitacaoIds = orcamentosAprovados.map(o => o.solicitacaoId);
+      
+      if (solicitacaoIds.length === 0) {
+        return res.json({ execucoes: [] });
+      }
+      
+      whereClause.id = {
+        in: solicitacaoIds
+      };
+    }
+    
+    const execucoes = await prisma.solicitacao.findMany({
+      where: whereClause,
+      include: {
+        imovel: true,
+        solicitante: {
+          select: {
+            id: true,
+            nome: true,
+            email: true
+          }
+        },
+        servicos: {
+          include: {
+            tipoServico: true
+          }
+        },
+        orcamentos: {
+          where: {
+            status: 'aprovado'
+          },
+          include: {
+            prestador: {
+              include: {
+                usuario: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    email: true
+                  }
+                }
+              }
+            },
+            itensServico: {
+              include: {
+                materiais: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    logger.info(`Execuções buscadas: ${execucoes.length} encontradas`, { userId: usuario.id });
+    res.json({ execucoes });
+  } catch (error) {
+    logger.error('Erro ao buscar execuções:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
 
 // Middleware de tratamento de erros
 app.use(errorLogger);
@@ -573,7 +823,9 @@ app.use(handleUploadError);
 // ROTAS PARA SOLICITAÇÕES
 // ==========================================
 
-// Criar nova solicitação
+
+
+// Criar nova solicitação (autenticada)
 app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
   try {
     const {
@@ -595,51 +847,37 @@ app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
       userId: req.usuario.id
     });
 
-    // Criar ou encontrar imóvel
-    let imovelRecord = await prisma.imovel.findFirst({
-      where: {
-        rua: imovel.endereco.rua,
-        numero: imovel.endereco.numero,
-        bairro: imovel.endereco.bairro,
-        cidade: imovel.endereco.cidade,
-        empresaId: req.usuario.empresaId
-      }
-    });
-
-    if (!imovelRecord) {
-      imovelRecord = await prisma.imovel.create({
-        data: {
-          rua: imovel.endereco.rua,
-          numero: imovel.endereco.numero,
-          complemento: imovel.endereco.complemento,
-          bairro: imovel.endereco.bairro,
-          cidade: imovel.endereco.cidade,
-          cep: imovel.endereco.cep,
-          estado: imovel.endereco.estado,
-          tipo: imovel.tipo,
-          area: imovel.area?.toString() || null,
-          quartos: imovel.quartos?.toString() || null,
-          banheiros: imovel.banheiros?.toString() || null,
-          andar: imovel.andar?.toString() || null,
-          temElevador: imovel.temElevador?.toString() || null,
-          observacoes: imovel.observacoes,
-          empresaId: req.usuario.empresaId
-        }
-      });
-    }
-
-    // Criar solicitação
+    // Criar solicitação com dados do imóvel incorporados
     const solicitacao = await prisma.solicitacao.create({
       data: {
+        // Dados do solicitante
         nomeSolicitante: solicitante.nome,
         emailSolicitante: solicitante.email,
         telefoneSolicitante: solicitante.telefone,
         tipoSolicitante: solicitante.tipo,
-        imovelId: imovelRecord.id,
+        
+        // Dados do imóvel incorporados diretamente
+        enderecoRua: imovel.endereco.rua,
+        enderecoNumero: imovel.endereco.numero,
+        enderecoComplemento: imovel.endereco.complemento,
+        enderecoBairro: imovel.endereco.bairro,
+        enderecoCidade: imovel.endereco.cidade,
+        enderecoCep: imovel.endereco.cep,
+        enderecoEstado: imovel.endereco.estado,
+        tipoImovel: imovel.tipo,
+        areaImovel: imovel.area ? parseFloat(imovel.area.toString()) : null,
+        quartosImovel: imovel.quartos ? parseInt(imovel.quartos.toString()) : null,
+        banheirosImovel: imovel.banheiros ? parseInt(imovel.banheiros.toString()) : null,
+        andarImovel: imovel.andar ? parseInt(imovel.andar.toString()) : null,
+        temElevador: imovel.temElevador,
+        observacoesImovel: imovel.observacoes,
+        
+        // Dados da solicitação
         prazoDesejado: prazoDesejado ? new Date(prazoDesejado) : null,
         observacoesGerais,
         usuarioId: req.usuario.id,
-        empresaId: req.usuario.empresaId,
+        
+        // Criar serviços relacionados
         servicos: {
           create: servicos.map(servico => ({
             tipoServicoId: servico.tipoServicoId,
@@ -650,19 +888,20 @@ app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
         }
       },
       include: {
-        imovel: true,
         servicos: {
           include: {
             tipoServico: true
           }
         },
-        anexos: true
+        anexos: true,
+        usuario: {
+          select: { id: true, nome: true, email: true }
+        }
       }
     });
 
     logger.logDatabase('Solicitação criada', { 
-      solicitacaoId: solicitacao.id, 
-      imovelId: imovelRecord.id,
+      solicitacaoId: solicitacao.id,
       userId: req.usuario.id 
     });
 
@@ -687,10 +926,47 @@ app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
 // Listar solicitações
 app.get('/api/solicitacoes', autenticarToken, async (req, res) => {
   try {
+    const { usuario } = req;
+    let whereClause = {}; // Removido filtro por empresa
+    
+    // Se for prestador, filtrar solicitações relevantes
+    if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
+      // Buscar o prestador associado ao usuário
+      const prestador = await prisma.prestador.findFirst({
+        where: { usuarioId: usuario.id }
+      });
+      
+      if (!prestador) {
+        // Se não é prestador cadastrado, não pode ver nenhuma solicitação
+        return res.json({ solicitacoes: [] });
+      }
+      
+      // Buscar IDs de solicitações onde o prestador tem orçamentos
+      const orcamentos = await prisma.orcamento.findMany({
+        where: { prestadorId: prestador.id },
+        select: { solicitacaoId: true }
+      });
+      
+      const solicitacoesComOrcamento = orcamentos.map(o => o.solicitacaoId);
+      
+      // Prestador pode ver:
+      // 1. Solicitações abertas ou em orçamento (para fazer novos orçamentos)
+      // 2. Solicitações onde ele já tem orçamentos (histórico)
+      whereClause = {
+        OR: [
+          {
+            status: { in: ['aberta', 'orcamento'] }
+          },
+          {
+            id: { in: solicitacoesComOrcamento }
+          }
+        ]
+      };
+    }
+    
     const solicitacoes = await prisma.solicitacao.findMany({
-      where: { empresaId: req.usuario.empresaId },
+      where: whereClause,
       include: {
-        imovel: true,
         servicos: {
           include: {
             tipoServico: true
@@ -718,11 +994,9 @@ app.get('/api/solicitacoes/:id', autenticarToken, async (req, res) => {
     
     const solicitacao = await prisma.solicitacao.findFirst({
       where: { 
-        id,
-        empresaId: req.usuario.empresaId 
+        id
       },
       include: {
-        imovel: true,
         servicos: {
           include: {
             tipoServico: true
@@ -778,7 +1052,9 @@ app.patch('/api/solicitacoes/:id/status', autenticarToken, async (req, res) => {
   }
 });
 
-// Listar tipos de serviço
+
+
+// Listar tipos de serviço (autenticado)
 app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
   try {
     const tiposServico = await prisma.tipoServico.findMany({
@@ -793,6 +1069,209 @@ app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
   } catch (err) {
     logger.logError('Erro ao buscar tipos de serviço', err, { userId: req.usuario.id });
     res.status(500).json({ error: 'Erro ao buscar tipos de serviço.' });
+  }
+});
+
+// Rotas para Prestadores
+app.get('/api/prestadores', autenticarToken, async (req, res) => {
+  try {
+    const prestadores = await prisma.prestador.findMany({
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            nome: true,
+            email: true
+          }
+        }
+      },
+      where: {
+        ativo: true
+      },
+      orderBy: {
+        usuario: {
+          nome: 'asc'
+        }
+      }
+    });
+    
+    res.json(prestadores);
+  } catch (error) {
+    logger.error('Erro ao buscar prestadores:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rotas para Orçamentos
+app.get('/api/orcamentos', autenticarToken, async (req, res) => {
+  try {
+    const { prestadorId } = req.query;
+    const { usuario } = req;
+    
+    const whereClause = {};
+    
+    // Se for prestador, só pode ver seus próprios orçamentos
+    if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
+      // Buscar o prestador associado ao usuário
+      const prestador = await prisma.prestador.findFirst({
+        where: { usuarioId: usuario.id }
+      });
+      
+      if (prestador) {
+        whereClause.prestadorId = prestador.id;
+      } else {
+        // Se não é prestador cadastrado, não pode ver nenhum orçamento
+        return res.json([]);
+      }
+    } else if (prestadorId) {
+      // Para usuários master/admin/gestor, permitir filtro por prestadorId
+      whereClause.prestadorId = prestadorId;
+    }
+    
+    const orcamentos = await prisma.orcamento.findMany({
+      where: whereClause,
+      include: {
+        solicitacao: {
+          include: {
+            servicos: {
+              include: {
+                tipoServico: true
+              }
+            }
+          }
+        },
+        prestador: {
+          include: {
+            usuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true
+              }
+            }
+          }
+        },
+        itensServico: {
+          include: {
+            materiais: true
+          }
+        }
+      },
+      orderBy: {
+        dataOrcamento: 'desc'
+      }
+    });
+    
+    res.json(orcamentos);
+  } catch (error) {
+    logger.error('Erro ao buscar orçamentos:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/api/orcamentos', autenticarToken, async (req, res) => {
+  try {
+    const {
+      solicitacaoId,
+      prestadorId,
+      itensServico,
+      taxaAdm,
+      prazoExecucao,
+      subtotalMateriais,
+      subtotalMaoDeObra,
+      subtotal,
+      valorTaxaAdm,
+      total,
+      status,
+      observacoes
+    } = req.body;
+    
+    const orcamento = await prisma.orcamento.create({
+      data: {
+        solicitacaoId,
+        prestadorId,
+        taxaAdm,
+        prazoExecucao,
+        subtotalMateriais,
+        subtotalMaoDeObra,
+        subtotal,
+        valorTaxaAdm,
+        total,
+        status: status || 'rascunho',
+        observacoes,
+        dataOrcamento: new Date(),
+        itensServico: {
+          create: itensServico?.map(item => ({
+            descricao: item.descricao,
+            valorMaoDeObra: item.valorMaoDeObra,
+            tempoEstimado: item.tempoEstimado,
+            materiais: {
+              create: item.materiais?.map(material => ({
+                descricao: material.descricao,
+                quantidade: material.quantidade,
+                unidade: material.unidade,
+                valorUnitario: material.valorUnitario,
+                valorTotal: material.valorTotal
+              })) || []
+            }
+          })) || []
+        }
+      },
+      include: {
+        itensServico: {
+          include: {
+            materiais: true
+          }
+        }
+      }
+    });
+    
+    logger.info(`Orçamento criado: ${orcamento.id}`);
+    res.status(201).json(orcamento);
+  } catch (error) {
+    logger.error('Erro ao criar orçamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.put('/api/orcamentos/:id', autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const orcamento = await prisma.orcamento.update({
+      where: { id },
+      data: updateData,
+      include: {
+        itensServico: {
+          include: {
+            materiais: true
+          }
+        }
+      }
+    });
+    
+    logger.info(`Orçamento atualizado: ${id}`);
+    res.json(orcamento);
+  } catch (error) {
+    logger.error('Erro ao atualizar orçamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.delete('/api/orcamentos/:id', autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await prisma.orcamento.delete({
+      where: { id }
+    });
+    
+    logger.info(`Orçamento deletado: ${id}`);
+    res.json({ message: 'Orçamento deletado com sucesso' });
+  } catch (error) {
+    logger.error('Erro ao deletar orçamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 

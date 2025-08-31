@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { mockSolicitacoes, mockOrcamentos } from '@/data/mockData';
 import { Search, Play, Pause, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { Solicitacao } from '@/types';
+import { useToast } from '@/hooks/use-toast';
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -37,21 +37,58 @@ const getStatusIcon = (status: string) => {
 
 const Execucao = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [execucoes, setExecucoes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   
-  // Filtra apenas solicitações que estão em execução ou aprovadas
-  const execucoes = mockSolicitacoes.filter(s => 
-    s.status === 'aprovada' || s.status === 'execucao' || s.status === 'concluida'
-  );
+  // Buscar execuções do backend
+  const fetchExecucoes = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/execucao', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao buscar execuções');
+      }
+      
+      const data = await response.json();
+      setExecucoes(data.execucoes || []);
+    } catch (error) {
+      console.error('Erro ao buscar execuções:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar execuções.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchExecucoes();
+  }, []);
 
   const filteredExecucoes = execucoes.filter(
-    (solicitacao) =>
-      solicitacao.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitacao.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      solicitacao.endereco.toLowerCase().includes(searchTerm.toLowerCase())
+    (execucao) => {
+      const solicitanteName = execucao.solicitante?.nome || '';
+      const tipoServico = execucao.servicos?.[0]?.tipoServico?.nome || '';
+      const endereco = `${execucao.imovel?.rua || ''} ${execucao.imovel?.numero || ''}`;
+      
+      return solicitanteName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             tipoServico.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             endereco.toLowerCase().includes(searchTerm.toLowerCase());
+    }
   );
 
-  const getOrcamentoPrincipal = (solicitacaoId: string) => {
-    return mockOrcamentos.find(o => o.solicitacaoId === solicitacaoId && o.isPrincipal);
+  const getOrcamentoPrincipal = (execucao: any) => {
+    return execucao.orcamentos?.[0] || null;
   };
 
   const getProgressPercentage = (status: string) => {
@@ -135,42 +172,51 @@ const Execucao = () => {
 
       {/* Execuções List */}
       <div className="space-y-4">
-        {filteredExecucoes.length === 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">Carregando execuções...</p>
+            </CardContent>
+          </Card>
+        ) : filteredExecucoes.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center">
               <p className="text-muted-foreground">Nenhuma execução encontrada.</p>
             </CardContent>
           </Card>
         ) : (
-          filteredExecucoes.map((solicitacao) => {
-            const orcamento = getOrcamentoPrincipal(solicitacao.id);
-            const StatusIcon = getStatusIcon(solicitacao.status);
-            const progress = getProgressPercentage(solicitacao.status);
+          filteredExecucoes.map((execucao) => {
+            const orcamento = getOrcamentoPrincipal(execucao);
+            const StatusIcon = getStatusIcon(execucao.status);
+            const progress = getProgressPercentage(execucao.status);
+            const tipoServico = execucao.servicos?.[0]?.tipoServico?.nome || 'Serviço Geral';
+            const endereco = `${execucao.imovel?.rua || ''}, ${execucao.imovel?.numero || ''}`;
+            const imovelId = `${execucao.imovel?.tipo?.toUpperCase() || 'IMOVEL'}-${execucao.imovel?.numero || execucao.id.slice(-4)}`;
 
             return (
-              <Card key={solicitacao.id} className="hover:shadow-md transition-shadow">
+              <Card key={execucao.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <CardTitle className="text-lg flex items-center gap-3">
                         <StatusIcon className="h-5 w-5" />
-                        {solicitacao.tipoManutencao}
-                        <Badge variant={getStatusColor(solicitacao.status) as any}>
-                          {getStatusLabel(solicitacao.status)}
+                        {tipoServico}
+                        <Badge variant={getStatusColor(execucao.status) as any}>
+                          {getStatusLabel(execucao.status)}
                         </Badge>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        ID: {solicitacao.imovelId} • {solicitacao.endereco}
+                        ID: {imovelId} • {endereco}
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      {solicitacao.status === 'aprovada' && (
+                      {execucao.status === 'aprovada' && (
                         <Button size="sm" className="gap-2">
                           <Play className="h-3 w-3" />
                           Iniciar
                         </Button>
                       )}
-                      {solicitacao.status === 'execucao' && (
+                      {execucao.status === 'execucao' && (
                         <Button size="sm" variant="outline" className="gap-2">
                           <CheckCircle className="h-3 w-3" />
                           Concluir
@@ -192,35 +238,35 @@ const Execucao = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                       <p className="text-sm font-medium text-foreground">Solicitante</p>
-                      <p className="text-sm text-muted-foreground">{solicitacao.nome}</p>
-                      <p className="text-xs text-muted-foreground">{solicitacao.telefone}</p>
+                      <p className="text-sm text-muted-foreground">{execucao.solicitante?.nome || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground">{execucao.solicitante?.email || 'N/A'}</p>
                     </div>
                     {orcamento && (
                       <div>
                         <p className="text-sm font-medium text-foreground">Prestador</p>
-                        <p className="text-sm text-muted-foreground">{orcamento.prestador.nome}</p>
-                        <p className="text-xs text-muted-foreground">{orcamento.prestador.contato}</p>
+                        <p className="text-sm text-muted-foreground">{orcamento.prestador?.usuario?.nome || 'N/A'}</p>
+                        <p className="text-xs text-muted-foreground">{orcamento.prestador?.usuario?.email || 'N/A'}</p>
                       </div>
                     )}
                     <div>
                       <p className="text-sm font-medium text-foreground">Prazo Final</p>
                       <p className="text-sm text-muted-foreground">
-                        {solicitacao.prazoFinal.toLocaleDateString('pt-BR')}
+                        {execucao.prazoDesejado ? new Date(execucao.prazoDesejado).toLocaleDateString('pt-BR') : 'N/A'}
                       </p>
                     </div>
                     {orcamento && (
                       <div>
                         <p className="text-sm font-medium text-foreground">Valor Total</p>
                         <p className="text-sm font-bold text-primary">
-                          R$ {orcamento.total.toFixed(2)}
+                          R$ {orcamento.valorTotal?.toFixed(2) || '0,00'}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {solicitacao.descricao && (
+                  {execucao.observacoesGerais && (
                     <div className="mt-4 p-3 bg-muted rounded-lg">
-                      <p className="text-sm text-foreground">{solicitacao.descricao}</p>
+                      <p className="text-sm text-foreground">{execucao.observacoesGerais}</p>
                     </div>
                   )}
                 </CardContent>

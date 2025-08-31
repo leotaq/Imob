@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useViewMode } from '../hooks/useViewMode';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -12,21 +13,63 @@ import {
   Plus
 } from 'lucide-react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Nova Solicitação', href: '/nova-solicitacao', icon: Plus },
-  { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList },
-  { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign },
-  { name: 'Execução', href: '/execucao', icon: Wrench },
-  { name: 'Prestadores', href: '/prestadores', icon: Users },
-  { name: 'Financeiro', href: '/financeiro', icon: BarChart3 },
-];
+const getNavigationForViewMode = (viewMode: string, usuario: any) => {
+  const allPages = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard, key: 'dashboard' },
+    { name: 'Nova Solicitação', href: '/solicitacao-inquilino', icon: Plus, key: 'nova_solicitacao' },
+    { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList, key: 'solicitacoes' },
+    { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign, key: 'orcamentos' },
+    { name: 'Execução', href: '/execucao', icon: Wrench, key: 'execucao' },
+    { name: 'Prestadores', href: '/prestadores', icon: Users, key: 'prestadores' },
+    { name: 'Financeiro', href: '/financeiro', icon: BarChart3, key: 'financeiro' },
+  ];
+
+  // Master: acesso a tudo
+  if (viewMode === 'master') {
+    return allPages;
+  }
+
+  // Gestor: páginas específicas definidas
+  if (viewMode === 'gestor') {
+    // Páginas padrão para gestores: nova solicitação, solicitações, orçamentos, execução e prestadores
+    const gestorNavigation = [
+      { name: 'Nova Solicitação', href: '/solicitacao-inquilino', icon: Plus, key: 'nova_solicitacao' },
+      { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList, key: 'solicitacoes' },
+      { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign, key: 'orcamentos' },
+      { name: 'Execução', href: '/execucao', icon: Wrench, key: 'execucao' },
+      { name: 'Prestadores', href: '/prestadores', icon: Users, key: 'prestadores' },
+    ];
+    
+    // Se o usuário tem permissões específicas configuradas, usar elas
+    if (usuario?.permissoes && Array.isArray(usuario.permissoes) && usuario.permissoes.length > 0) {
+      return allPages.filter(page => usuario.permissoes.includes(page.key));
+    }
+    
+    // Caso contrário, usar permissões padrão do gestor
+    return gestorNavigation;
+  }
+
+  // Prestador: solicitações, orçamentos e execução
+  if (viewMode === 'prestador') {
+    return [
+      { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList, key: 'solicitacoes' },
+      { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign, key: 'orcamentos' },
+      { name: 'Execução', href: '/execucao', icon: Wrench, key: 'execucao' },
+    ];
+  }
+
+  // Usuário comum: apenas nova solicitação
+  return [
+    { name: 'Nova Solicitação', href: '/solicitacao-inquilino', icon: Plus, key: 'nova_solicitacao' },
+  ];
+};
 
 export const Sidebar = () => {
   const location = useLocation();
   const { usuario, logout } = useAuth();
+  const { viewMode } = useViewMode();
 
-
+  const navigation = getNavigationForViewMode(viewMode, usuario);
 
   return (
     <div className="flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
@@ -62,19 +105,33 @@ export const Sidebar = () => {
             </Link>
           );
         })}
-        {usuario?.isAdmin && (
-          <Link
-            to="/admin"
-            className={cn(
-              'group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
-              location.pathname === '/admin'
-                ? 'bg-sidebar-accent text-sidebar-primary'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary'
-            )}
-          >
-            <Settings className="mr-2 h-5 w-5" />
-            Administração
-          </Link>
+        {viewMode === 'master' && (
+          <>
+            <Link
+              to="/admin"
+              className={cn(
+                'group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                location.pathname === '/admin'
+                  ? 'bg-sidebar-accent text-sidebar-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary'
+              )}
+            >
+              <Settings className="mr-2 h-5 w-5" />
+              Administração
+            </Link>
+            <Link
+              to="/configuracao-permissoes"
+              className={cn(
+                'group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                location.pathname === '/configuracao-permissoes'
+                  ? 'bg-sidebar-accent text-sidebar-primary'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary'
+              )}
+            >
+              <Users className="mr-2 h-5 w-5" />
+              Permissões
+            </Link>
+          </>
         )}
       </nav>
       {/* Botão de logout no rodapé */}

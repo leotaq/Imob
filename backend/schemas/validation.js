@@ -17,10 +17,10 @@ const empresaSchema = z.object({
 // Schema para login
 const loginSchema = z.object({
   email: z.string().email('Email inválido').optional(),
-  id: z.string().optional(),
+  codigo: z.string().optional(),
   senha: z.string().min(1, 'Senha é obrigatória')
-}).refine(data => data.email || data.id, {
-  message: 'Email ou ID é obrigatório'
+}).refine(data => data.email || data.codigo, {
+  message: 'Email ou código é obrigatório'
 });
 
 // Schema para atualização de usuário
@@ -29,12 +29,21 @@ const usuarioUpdateSchema = z.object({
   email: z.string().email('Email inválido')
 });
 
-// Schema para registro (empresa + usuário admin)
+// Schema para registro
 const registroSchema = z.object({
-  nomeEmpresa: z.string().min(2, 'Nome da empresa deve ter pelo menos 2 caracteres').max(200),
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100),
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres')
+  telefone: z.string().optional(),
+  senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  codigoUsuario: z.string().min(3, 'Código deve ter pelo menos 3 caracteres').max(20, 'Código deve ter no máximo 20 caracteres').regex(/^[a-z0-9]+$/, 'Código deve conter apenas letras minúsculas e números').optional(),
+  tipoUsuario: z.enum(['usuario', 'prestador']),
+  prestador: z.object({
+    tipoPessoa: z.enum(['fisica', 'juridica']),
+    documento: z.string().min(11, 'Documento inválido'),
+    tipoPagamento: z.enum(['pix', 'transferencia', 'dinheiro']),
+    notaRecibo: z.enum(['recibo', 'nota_fiscal']),
+    especialidades: z.array(z.string()).min(1, 'Pelo menos uma especialidade é obrigatória')
+  }).optional()
 });
 
 // Schema para solicitação

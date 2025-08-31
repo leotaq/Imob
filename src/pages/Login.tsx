@@ -29,10 +29,16 @@ const Login = () => {
     setErro('');
     setLoading(true);
     try {
+      // Determina se é email ou código
+      const isEmail = email.includes('@');
+      const loginData = isEmail 
+        ? { email, senha }
+        : { codigo: email, senha };
+      
       const res = await fetch('http://localhost:3001/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha })
+        body: JSON.stringify(loginData)
       });
       const data = await res.json();
       if (!res.ok) {
@@ -46,6 +52,13 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearStorage = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    setErro('');
+    window.location.reload();
   };
 
   return (
@@ -63,15 +76,18 @@ const Login = () => {
         </div>
         <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
         <div>
-          <label className="block mb-1 font-medium">E-mail</label>
+          <label className="block mb-1 font-medium">E-mail ou ID</label>
           <input
             type="text"
             className="w-full border rounded px-3 py-2"
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
-            placeholder="E-mail ou ID"
+            placeholder="Digite seu e-mail ou ID"
           />
+          <p className="text-xs text-muted-foreground mt-1">
+            💡 Você pode usar seu e-mail ou o ID que escolheu no cadastro (ex: joao123, maria, carlos)
+          </p>
         </div>
         <div>
           <label className="block mb-1 font-medium">Senha</label>
@@ -97,6 +113,57 @@ const Login = () => {
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
+        <button
+          type="button"
+          onClick={clearStorage}
+          className="w-full py-2 rounded font-semibold transition bg-red-500 text-white hover:bg-red-600 text-sm"
+        >
+          Limpar Cache e Recarregar
+        </button>
+        
+        {/* Botão de Cadastro */}
+        <div className="text-center pt-4 border-t">
+          <p className="text-sm text-muted-foreground mb-2">Não tem uma conta?</p>
+          <button
+            type="button"
+            onClick={() => navigate('/register')}
+            className="w-full py-2 rounded font-semibold transition bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          >
+            Criar Nova Conta
+          </button>
+        </div>
+        
+        {/* Credenciais de teste para a equipe */}
+        <div className="space-y-3 pt-4 border-t">
+          <p className="text-sm text-center text-muted-foreground font-semibold">🔑 Credenciais para Teste</p>
+          <div className="space-y-2 text-xs">
+            <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border">
+              <div className="font-semibold text-purple-700 dark:text-purple-300">👑 Master</div>
+              <div className="text-gray-600 dark:text-gray-300">ID: <span className="font-mono">master</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Email: <span className="font-mono">master@imobigestor.com</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Senha: <span className="font-mono">123456</span></div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded border">
+              <div className="font-semibold text-blue-700 dark:text-blue-300">👨‍💼 Gestor</div>
+              <div className="text-gray-600 dark:text-gray-300">ID: <span className="font-mono">gestor</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Email: <span className="font-mono">gestor@imobigestor.com</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Senha: <span className="font-mono">123456</span></div>
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded border">
+              <div className="font-semibold text-green-700 dark:text-green-300">🔧 Prestador</div>
+              <div className="text-gray-600 dark:text-gray-300">ID: <span className="font-mono">prestador</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Email: <span className="font-mono">prestador@imobigestor.com</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Senha: <span className="font-mono">123456</span></div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-900/20 p-2 rounded border">
+              <div className="font-semibold text-gray-700 dark:text-gray-300">👤 Usuário</div>
+              <div className="text-gray-600 dark:text-gray-300">ID: <span className="font-mono">usuario</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Email: <span className="font-mono">usuario@imobigestor.com</span></div>
+              <div className="text-gray-600 dark:text-gray-300">Senha: <span className="font-mono">123456</span></div>
+            </div>
+          </div>
+          <p className="text-xs text-center text-muted-foreground italic">💡 Copie e cole as credenciais acima nos campos de login</p>
+        </div>
       </form>
     </div>
   );

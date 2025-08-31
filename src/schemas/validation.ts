@@ -27,7 +27,8 @@ export const registroSchema = z.object({
   nomeEmpresa: z.string().min(2, 'Nome da empresa deve ter pelo menos 2 caracteres'),
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres')
+  senha: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  codigoUsuario: z.string().min(3, 'Código deve ter pelo menos 3 caracteres').max(20, 'Código deve ter no máximo 20 caracteres').regex(/^[a-z0-9]+$/, 'Código deve conter apenas letras minúsculas e números').optional()
 });
 
 // Schema para solicitação

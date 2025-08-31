@@ -6,9 +6,10 @@ export function useAuth() {
     const u = localStorage.getItem('usuario');
     if (!u) return null;
     const parsed = JSON.parse(u);
-    // Garante que isAdmin e isMaster sempre serão booleanos
+    // Garante que as propriedades booleanas sempre serão booleanos
     parsed.isAdmin = Boolean(parsed.isAdmin);
     parsed.isMaster = Boolean(parsed.isMaster);
+    parsed.isGestor = Boolean(parsed.isGestor);
     return parsed;
   });
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);

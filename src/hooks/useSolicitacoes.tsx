@@ -29,6 +29,7 @@ export const useSolicitacoes = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
+      
       const response = await fetch('http://localhost:3001/api/solicitacoes', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -42,21 +43,28 @@ export const useSolicitacoes = () => {
       
       const data = await response.json();
       
+      if (!data.solicitacoes || data.solicitacoes.length === 0) {
+        setSolicitacoes([]);
+        return;
+      }
+      
       // Transformar dados do backend para o formato esperado pelo frontend
-      const solicitacoesFormatadas = data.solicitacoes.map((sol: any) => ({
-        id: sol.id,
-        imovelId: `${sol.imovel.tipo.toUpperCase()}-${sol.imovel.numero}`,
-        tipoSolicitante: sol.tipoSolicitante,
-        nome: sol.nomeSolicitante,
-        telefone: sol.telefoneSolicitante,
-        endereco: `${sol.imovel.rua}, ${sol.imovel.numero}${sol.imovel.complemento ? ` - ${sol.imovel.complemento}` : ''} - ${sol.imovel.bairro}`,
-        cidade: sol.imovel.cidade,
-        tipoManutencao: sol.servicos[0]?.tipoServico?.nome || 'Serviço Geral',
-        dataSolicitacao: new Date(sol.createdAt),
-        prazoFinal: sol.prazoDesejado ? new Date(sol.prazoDesejado) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        descricao: sol.observacoesGerais || sol.servicos[0]?.descricao || '',
-        status: sol.status || 'aberta'
-      }));
+      const solicitacoesFormatadas = data.solicitacoes.map((sol: any) => {
+        return {
+          id: sol.id,
+          imovelId: sol.id, // Usando o próprio ID da solicitação já que não há mais imovel separado
+          tipoSolicitante: sol.tipoSolicitante,
+          nome: sol.nomeSolicitante,
+          telefone: sol.telefoneSolicitante,
+          endereco: `${sol.enderecoRua}, ${sol.enderecoNumero} - ${sol.enderecoBairro}, ${sol.enderecoCidade}`,
+          cidade: sol.enderecoCidade || '',
+          tipoManutencao: sol.servicos?.map((s: any) => s.tipoServico?.nome).join(', ') || 'Não especificado',
+          dataSolicitacao: new Date(sol.createdAt),
+          prazoFinal: sol.prazoDesejado ? new Date(sol.prazoDesejado) : null,
+          descricao: sol.observacoesGerais || '',
+          status: sol.status
+        };
+      });
       
       setSolicitacoes(solicitacoesFormatadas);
     } catch (error) {

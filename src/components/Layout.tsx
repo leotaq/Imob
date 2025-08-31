@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
+import { ViewModeSelector } from './ViewModeSelector';
 import { Outlet } from 'react-router-dom';
+import { useViewMode } from '../hooks/useViewMode';
 
 export const Layout = () => {
+  const { viewMode } = useViewMode();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
@@ -18,11 +21,12 @@ export const Layout = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar />
+      <Sidebar key={viewMode} />
       <main className="flex-1 overflow-auto flex flex-col">
-        <div className="p-6 flex justify-end">
+        <div className="p-6 flex justify-between items-start">
+          <ViewModeSelector />
           <button
-            className="mb-4 px-3 py-1 rounded border text-xs mr-4"
+            className="mb-4 px-3 py-1 rounded border text-xs"
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
             aria-label="Alternar tema"
           >

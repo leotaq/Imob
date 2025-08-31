@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
-import { Orcamento } from '@/types';
-import { mockOrcamentos, mockSolicitacoes, mockPrestadores } from '@/data/mockData';
+import { useState, useMemo, useEffect } from 'react';
+import { Orcamento, Solicitacao, Prestador } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface OrcamentoFilters {
   searchTerm: string;
@@ -14,7 +14,10 @@ export interface OrcamentoFilters {
 }
 
 const useOrcamentos = () => {
-  const [orcamentos, setOrcamentos] = useState<Orcamento[]>(mockOrcamentos);
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
+  const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
+  const [prestadores, setPrestadores] = useState<Prestador[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<OrcamentoFilters>({
     searchTerm: '',
     solicitacaoId: 'all',
@@ -25,13 +28,88 @@ const useOrcamentos = () => {
     sortBy: 'data-desc'
   });
   const { toast } = useToast();
+  const { usuario } = useAuth();
 
-  // Função para gerar ID único
-  const generateUniqueId = () => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000);
-    return `ORC-${timestamp}-${random}`;
+  // Função para buscar dados do backend
+  const fetchOrcamentos = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/orcamentos', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar orçamentos');
+      
+      const data = await response.json();
+      setOrcamentos(data.map((orc: any) => ({
+        ...orc,
+        dataOrcamento: new Date(orc.dataOrcamento),
+        dataAprovacao: orc.dataAprovacao ? new Date(orc.dataAprovacao) : undefined,
+        dataVisita: orc.dataVisita ? new Date(orc.dataVisita) : undefined
+      })));
+    } catch (error) {
+      console.error('Erro ao buscar orçamentos:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar orçamentos.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const fetchSolicitacoes = async () => {
+    try {
+      const response = await fetch('/api/solicitacoes', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar solicitações');
+      
+      const data = await response.json();
+      setSolicitacoes(data.solicitacoes.map((sol: any) => ({
+        ...sol,
+        dataSolicitacao: new Date(sol.dataSolicitacao),
+        prazoDesejado: sol.prazoDesejado ? new Date(sol.prazoDesejado) : undefined
+      })));
+    } catch (error) {
+      console.error('Erro ao buscar solicitações:', error);
+    }
+  };
+
+  const fetchPrestadores = async () => {
+    try {
+      const response = await fetch('/api/prestadores', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar prestadores');
+      
+      const data = await response.json();
+      setPrestadores(data.map((prest: any) => ({
+        ...prest,
+        dataCadastro: new Date(prest.dataCadastro)
+      })));
+    } catch (error) {
+      console.error('Erro ao buscar prestadores:', error);
+    }
+  };
+
+  // Carregar dados ao montar o componente
+  useEffect(() => {
+    if (usuario) {
+      fetchOrcamentos();
+      fetchSolicitacoes();
+      fetchPrestadores();
+    }
+  }, [usuario]);
 
   // Orçamentos filtrados e ordenados
   const filteredOrcamentos = useMemo(() => {
@@ -42,7 +120,7 @@ const useOrcamentos = () => {
       }
 
       // Filtro por prestador
-      if (filters.prestadorId !== 'all' && orcamento.prestador.id !== filters.prestadorId) {
+      if (filters.prestadorId !== 'all' && orcamento.prestadorId !== filters.prestadorId) {
         return false;
       }
 
@@ -62,10 +140,11 @@ const useOrcamentos = () => {
       // Filtro por busca
       if (filters.searchTerm) {
         const searchLower = filters.searchTerm.toLowerCase();
-        const solicitacao = mockSolicitacoes.find(s => s.id === orcamento.solicitacaoId);
+        const solicitacao = solicitacoes.find(s => s.id === orcamento.solicitacaoId);
+        const prestador = prestadores.find(p => p.id === orcamento.prestadorId);
         return (
-          orcamento.prestador.nome.toLowerCase().includes(searchLower) ||
-          solicitacao?.tipoManutencao.toLowerCase().includes(searchLower) ||
+          prestador?.nome.toLowerCase().includes(searchLower) ||
+          solicitacao?.observacoesGerais?.toLowerCase().includes(searchLower) ||
           solicitacao?.imovelId.toLowerCase().includes(searchLower)
         );
       }
@@ -88,10 +167,16 @@ const useOrcamentos = () => {
           return a.dataOrcamento.getTime() - b.dataOrcamento.getTime();
         case 'data-desc':
           return b.dataOrcamento.getTime() - a.dataOrcamento.getTime();
-        case 'prestador-asc':
-          return a.prestador.nome.localeCompare(b.prestador.nome);
-        case 'prestador-desc':
-          return b.prestador.nome.localeCompare(a.prestador.nome);
+        case 'prestador-asc': {
+          const prestadorA = prestadores.find(p => p.id === a.prestadorId);
+          const prestadorB = prestadores.find(p => p.id === b.prestadorId);
+          return (prestadorA?.nome || '').localeCompare(prestadorB?.nome || '');
+        }
+        case 'prestador-desc': {
+          const prestadorA = prestadores.find(p => p.id === a.prestadorId);
+          const prestadorB = prestadores.find(p => p.id === b.prestadorId);
+          return (prestadorB?.nome || '').localeCompare(prestadorA?.nome || '');
+        }
         default:
           return 0;
       }
@@ -139,22 +224,37 @@ const useOrcamentos = () => {
   }, [filteredOrcamentos]);
 
   // Criar orçamento
-  const createOrcamento = (orcamentoData: Omit<Orcamento, 'id'>) => {
+  const createOrcamento = async (orcamentoData: Omit<Orcamento, 'id' | 'dataOrcamento'>) => {
     try {
-      const newOrcamento: Orcamento = {
-        ...orcamentoData,
-        id: generateUniqueId()
-      };
+      const response = await fetch('/api/orcamentos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(orcamentoData)
+      });
       
-      setOrcamentos(prev => [...prev, newOrcamento]);
+      if (!response.ok) throw new Error('Erro ao criar orçamento');
+      
+      const newOrcamento = await response.json();
+      
+      // Atualizar estado local
+      setOrcamentos(prev => [...prev, {
+        ...newOrcamento,
+        dataOrcamento: new Date(newOrcamento.dataOrcamento),
+        dataAprovacao: newOrcamento.dataAprovacao ? new Date(newOrcamento.dataAprovacao) : undefined,
+        dataVisita: newOrcamento.dataVisita ? new Date(newOrcamento.dataVisita) : undefined
+      }]);
       
       toast({
         title: "Orçamento criado",
-        description: `Orçamento ${newOrcamento.id} criado com sucesso.`,
+        description: `Orçamento criado com sucesso.`,
       });
       
       return newOrcamento;
     } catch (error) {
+      console.error('Erro ao criar orçamento:', error);
       toast({
         title: "Erro",
         description: "Erro ao criar orçamento.",
@@ -165,12 +265,31 @@ const useOrcamentos = () => {
   };
 
   // Atualizar orçamento
-  const updateOrcamento = (id: string, updates: Partial<Orcamento>) => {
+  const updateOrcamento = async (id: string, updates: Partial<Orcamento>) => {
     try {
+      const response = await fetch(`/api/orcamentos/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) throw new Error('Erro ao atualizar orçamento');
+      
+      const updatedOrcamento = await response.json();
+      
+      // Atualizar estado local
       setOrcamentos(prev => 
         prev.map(orcamento => 
           orcamento.id === id 
-            ? { ...orcamento, ...updates }
+            ? {
+                ...updatedOrcamento,
+                dataOrcamento: new Date(updatedOrcamento.dataOrcamento),
+                dataAprovacao: updatedOrcamento.dataAprovacao ? new Date(updatedOrcamento.dataAprovacao) : undefined,
+                dataVisita: updatedOrcamento.dataVisita ? new Date(updatedOrcamento.dataVisita) : undefined
+              }
             : orcamento
         )
       );
@@ -180,6 +299,7 @@ const useOrcamentos = () => {
         description: "Orçamento atualizado com sucesso.",
       });
     } catch (error) {
+      console.error('Erro ao atualizar orçamento:', error);
       toast({
         title: "Erro",
         description: "Erro ao atualizar orçamento.",
@@ -190,8 +310,18 @@ const useOrcamentos = () => {
   };
 
   // Deletar orçamento
-  const deleteOrcamento = (id: string) => {
+  const deleteOrcamento = async (id: string) => {
     try {
+      const response = await fetch(`/api/orcamentos/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao deletar orçamento');
+      
+      // Atualizar estado local
       setOrcamentos(prev => prev.filter(orcamento => orcamento.id !== id));
       
       toast({
@@ -199,6 +329,7 @@ const useOrcamentos = () => {
         description: "Orçamento removido com sucesso.",
       });
     } catch (error) {
+      console.error('Erro ao deletar orçamento:', error);
       toast({
         title: "Erro",
         description: "Erro ao remover orçamento.",
@@ -260,6 +391,9 @@ const useOrcamentos = () => {
     orcamentos: filteredOrcamentos,
     filteredOrcamentos,
     groupedOrcamentos,
+    solicitacoes,
+    prestadores,
+    loading,
     filters,
     statistics,
     createOrcamento,

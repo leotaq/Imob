@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSolicitacoes } from '@/hooks/useSolicitacoes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +22,9 @@ import {
   AlertTriangle,
   CheckCircle,
   FileText,
-  Camera
+  Camera,
+  History,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,9 +32,11 @@ import { ptBR } from 'date-fns/locale';
 import type { ServicoSolicitado, TipoServico } from '@/types';
 
 const SolicitacaoInquilino = () => {
-  const { reloadSolicitacoes } = useSolicitacoes();
-  const { usuario } = useAuth();
+  const { usuario, token } = useAuth();
+  const { solicitacoes } = useSolicitacoes();
+  const navigate = useNavigate();
   const [servicos, setServicos] = useState<ServicoSolicitado[]>([]);
+  const [mostrarHistorico, setMostrarHistorico] = useState(false);
   
   // Estados para tipos de serviço
   const [tiposServico, setTiposServico] = useState<TipoServico[]>([]);
@@ -92,8 +97,13 @@ const SolicitacaoInquilino = () => {
    // useEffect para carregar tipos de serviço
    useEffect(() => {
      const carregarTiposServico = async () => {
+       if (!token) {
+         console.error('Token não disponível');
+         setCarregandoTipos(false);
+         return;
+       }
+       
        try {
-         const token = localStorage.getItem('token');
          const response = await fetch('http://localhost:3001/api/tipos-servico', {
            headers: {
              'Authorization': `Bearer ${token}`
@@ -114,7 +124,7 @@ const SolicitacaoInquilino = () => {
      };
  
      carregarTiposServico();
-   }, []);
+   }, [token]);
 
   // Função para adicionar novo serviço
   const adicionarServico = () => {
@@ -251,9 +261,6 @@ const SolicitacaoInquilino = () => {
       const result = await response.json();
       console.log('Solicitação criada:', result.solicitacao);
       
-      // Recarregar as solicitações para atualizar a lista
-      await reloadSolicitacoes();
-      
       alert('Solicitação enviada com sucesso!');
       
       // Limpar formulário
@@ -294,28 +301,165 @@ const SolicitacaoInquilino = () => {
     }
   };
 
+  // Filtrar solicitações do usuário logado
+  const minhasSolicitacoes = solicitacoes.filter(sol => sol.usuarioId === usuario?.id);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-6">
       {/* Cabeçalho */}
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
           <Home className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Nova Solicitação</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            {mostrarHistorico ? 'Histórico de Solicitações' : 'Nova Solicitação'}
+          </h1>
         </div>
         <p className="text-muted-foreground">
-          Descreva os serviços que você precisa e nossa equipe cuidará do resto
+          {mostrarHistorico 
+            ? 'Visualize suas solicitações anteriores e acompanhe o status'
+            : 'Descreva os serviços que você precisa e nossa equipe cuidará do resto'
+          }
         </p>
+        
+        {/* Botões de navegação */}
+        <div className="flex justify-center gap-4 mt-4">
+          <Button 
+            variant={!mostrarHistorico ? "default" : "outline"}
+            onClick={() => setMostrarHistorico(false)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nova Solicitação
+          </Button>
+          <Button 
+            variant={mostrarHistorico ? "default" : "outline"}
+            onClick={() => setMostrarHistorico(true)}
+            className="flex items-center gap-2"
+          >
+            <History className="h-4 w-4" />
+            Histórico ({minhasSolicitacoes.length})
+          </Button>
+        </div>
       </div>
 
-      {/* Informações do Solicitante */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Home className="h-5 w-5" />
-            Informações do Solicitante
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Seção de Histórico */}
+      {mostrarHistorico && (
+        <div className="space-y-4">
+          {!usuario || !token ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Login necessário</h3>
+                <p className="text-muted-foreground mb-4">
+                  Você precisa estar logado para visualizar o histórico de solicitações.
+                </p>
+                <Button 
+                  onClick={() => navigate('/login')}
+                  className="flex items-center gap-2"
+                >
+                  <Home className="h-4 w-4" />
+                  Fazer Login
+                </Button>
+              </CardContent>
+            </Card>
+          ) : minhasSolicitacoes.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhuma solicitação encontrada</h3>
+                <p className="text-muted-foreground mb-4">
+                  Você ainda não fez nenhuma solicitação de serviço.
+                </p>
+                <Button 
+                  onClick={() => setMostrarHistorico(false)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Fazer primeira solicitação
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {minhasSolicitacoes.map((solicitacao) => (
+                <Card key={solicitacao.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Wrench className="h-5 w-5" />
+                          {solicitacao.tipoManutencao || 'Serviço Geral'}
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Solicitado em {format(new Date(solicitacao.dataSolicitacao), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={solicitacao.status === 'concluida' ? 'default' : 
+                                  solicitacao.status === 'execucao' ? 'secondary' : 
+                                  solicitacao.status === 'orcamento' ? 'outline' : 'destructive'}
+                        >
+                          {solicitacao.status === 'pendente' ? 'Pendente' :
+                           solicitacao.status === 'orcamento' ? 'Orçamento' :
+                           solicitacao.status === 'execucao' ? 'Em Execução' :
+                           solicitacao.status === 'concluida' ? 'Concluída' :
+                           solicitacao.status === 'cancelada' ? 'Cancelada' : 'Aberta'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="font-medium text-muted-foreground">Endereço:</p>
+                          <p>{solicitacao.endereco}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-muted-foreground">Cidade:</p>
+                          <p>{solicitacao.cidade}</p>
+                        </div>
+                      </div>
+                      
+                      {solicitacao.descricao && (
+                        <div>
+                          <p className="font-medium text-muted-foreground text-sm">Descrição:</p>
+                          <p className="text-sm">{solicitacao.descricao}</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-center pt-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          Prazo: {format(new Date(solicitacao.prazoFinal), 'dd/MM/yyyy', { locale: ptBR })}
+                        </div>
+                        <Button variant="outline" size="sm" className="flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          Ver detalhes
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Formulário de Nova Solicitação */}
+      {!mostrarHistorico && (
+        <div className="space-y-6">
+          {/* Informações do Solicitante */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                Informações do Solicitante
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Nome Completo *</Label>
@@ -361,21 +505,21 @@ const SolicitacaoInquilino = () => {
                 </Select>
               </div>
             </div>
-          </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Informações do Imóvel */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Home className="h-5 w-5" />
-            Informações do Imóvel
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          {/* Informações do Imóvel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                Informações do Imóvel
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
           {/* Endereço */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Endereço</h4>
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm text-gray-700">Endereço</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <Label>Rua/Avenida *</Label>
@@ -440,9 +584,9 @@ const SolicitacaoInquilino = () => {
             </div>
           </div>
 
-          {/* Características do Imóvel */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Características</h4>
+              {/* Características */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm text-gray-700">Características</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Tipo de Imóvel *</Label>
@@ -776,8 +920,10 @@ const SolicitacaoInquilino = () => {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
