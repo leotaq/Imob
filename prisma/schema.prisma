@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id           String        @id @default(uuid())
+  nome         String
+  usuarios     Usuario[]
+  imoveis      Imovel[]
+  tiposServico TipoServico[]
+  createdAt    DateTime      @default(now())
+}
+
+model Usuario {
+  id           String        @id @default(uuid())
+  codigo       String?       @unique // ID amigável para login (ex: USR001, USR002)
+  email        String        @unique
+  senha        String
+  nome         String
+  telefone     String?       // Campo telefone adicionado
+  isAdmin      Boolean       @default(false)
+  isMaster     Boolean       @default(false)
+  isGestor     Boolean       @default(false)
+  permissoes   String[]      @default([]) // Array de permissões para gestores
+  empresaId    String?
+  empresa      Empresa?      @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  prestador    Prestador?
+  createdAt    DateTime      @default(now())
+}
+
+model Imovel {
+  id           String        @id @default(uuid())
+  rua          String
+  numero       String
+  complemento  String?
+  bairro       String
+  cidade       String
+  cep          String
+  estado       String
+  tipo         String        // casa, apartamento, comercial, etc
+  area         String?
+  quartos      String?
+  banheiros    String?
+  andar        String?
+  temElevador  String?
+  observacoes  String?
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  createdAt    DateTime      @default(now())
+}
+
+model Solicitacao {
+  id                String             @id @default(uuid())
+  // Dados do solicitante
+  nomeSolicitante   String
+  emailSolicitante  String
+  telefoneSolicitante String?
+  tipoSolicitante   String             // inquilino, proprietario, imobiliaria, terceiros
+  
+  // Dados do imóvel (incorporados diretamente)
+  enderecoRua       String
+  enderecoNumero    String
+  enderecoComplemento String?
+  enderecoBairro    String
+  enderecoCidade    String
+  enderecoCep       String
+  enderecoEstado    String
+  tipoImovel        String             // casa, apartamento, comercial, etc
+  areaImovel        Float?
+  quartosImovel     Int?
+  banheirosImovel   Int?
+  andarImovel       Int?
+  temElevador       Boolean?
+  observacoesImovel String?
+  
+  // Dados da solicitação
+  prazoDesejado     DateTime?
+  observacoesGerais String?
+  status            String             @default("aberta") // aberta, em_andamento, concluida, cancelada
+  prioridade        String             @default("media")    // baixa, media, alta
+  
+  // Relacionamentos
+  usuarioId         String?
+  usuario           Usuario?           @relation(fields: [usuarioId], references: [id])
+  servicos          ServicoSolicitado[]
+  anexos            AnexoSolicitacao[]
+  orcamentos        Orcamento[]
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model TipoServico {
+  id                String             @id @default(uuid())
+  nome              String
+  categoria         String
+  descricao         String?
+  ativo             Boolean            @default(true)
+  empresaId         String
+  empresa           Empresa            @relation(fields: [empresaId], references: [id])
+  servicosSolicitados ServicoSolicitado[]
+  createdAt         DateTime           @default(now())
+}
+
+model ServicoSolicitado {
+  id             String        @id @default(uuid())
+  solicitacaoId  String
+  solicitacao    Solicitacao   @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  tipoServicoId  String
+  tipoServico    TipoServico   @relation(fields: [tipoServicoId], references: [id])
+  descricao      String
+  prioridade     String        @default("media") // baixa, media, alta
+  observacoes    String?
+  createdAt      DateTime      @default(now())
+}
+
+model AnexoSolicitacao {
+  id            String      @id @default(uuid())
+  solicitacaoId String
+  solicitacao   Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  nomeArquivo   String
+  caminhoArquivo String
+  tamanho       Int
+  tipo          String
+  createdAt     DateTime    @default(now())
+}
+
+model Prestador {
+  id              String     @id @default(uuid())
+  usuarioId       String     @unique
+  usuario         Usuario    @relation(fields: [usuarioId], references: [id])
+  nome            String
+  contato         String
+  tipoPessoa      String     // fisica, juridica
+  documento       String     // CPF ou CNPJ
+  tipoPagamento   String     // pix, transferencia, dinheiro
+  notaRecibo      String     // nota_fiscal, recibo
+  especialidades  String[]   // array de especialidades
+  avaliacaoMedia  Float?     @default(0)
+  ativo           Boolean    @default(true)
+  dataCadastro    DateTime   @default(now())
+  orcamentos      Orcamento[]
+  createdAt       DateTime   @default(now())
+}
+
+model Orcamento {
+  id                String                @id @default(uuid())
+  solicitacaoId     String
+  solicitacao       Solicitacao           @relation(fields: [solicitacaoId], references: [id])
+  prestadorId       String
+  prestador         Prestador             @relation(fields: [prestadorId], references: [id])
+  itensServico      ItemOrcamentoServico[]
+  taxaAdm           Float                 @default(0)
+  prazoExecucao     Int                   // em dias
+  subtotalMateriais Float                 @default(0)
+  subtotalMaoDeObra Float                 @default(0)
+  subtotal          Float                 @default(0)
+  valorTaxaAdm      Float                 @default(0)
+  total             Float                 @default(0)
+  status            String                @default("rascunho") // rascunho, enviado, aprovado, rejeitado
+  observacoes       String?
+  dataOrcamento     DateTime              @default(now())
+  dataAprovacao     DateTime?
+  dataVisita        DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+}
+
+model ItemOrcamentoServico {
+  id              String                    @id @default(uuid())
+  orcamentoId     String
+  orcamento       Orcamento                 @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  descricao       String
+  valorMaoDeObra  Float                     @default(0)
+  tempoEstimado   Int                       @default(1) // em horas
+  materiais       MaterialOrcamentoServico[]
+  createdAt       DateTime                  @default(now())
+}
+
+model MaterialOrcamentoServico {
+  id              String               @id @default(uuid())
+  itemServicoId   String
+  itemServico     ItemOrcamentoServico @relation(fields: [itemServicoId], references: [id], onDelete: Cascade)
+  descricao       String
+  quantidade      Float                @default(1)
+  unidade         String               @default("un")
+  valorUnitario   Float                @default(0)
+  valorTotal      Float                @default(0)
+  createdAt       DateTime             @default(now())
+}

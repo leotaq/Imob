@@ -689,6 +689,9 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
 // Middleware de tratamento de erros
 app.use(errorLogger);
 
+// Export para Vercel
+module.exports = app;
+
 // Inicialização
 criarMaster();
 
