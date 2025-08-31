@@ -1,3 +1,6 @@
+// Schema Prisma para Supabase (PostgreSQL)
+// Este arquivo é otimizado para uso com Supabase
+
 generator client {
   provider = "prisma-client-js"
 }
