@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id           String        @id @default(uuid())
+  nome         String
+  usuarios     Usuario[]
+  imoveis      Imovel[]
+  tiposServico TipoServico[]
+  createdAt    DateTime      @default(now())
+}
+
+model Usuario {
+  id           String        @id @default(uuid())
+  codigo       String?       @unique // ID amigável para login (ex: USR001, USR002)
+  email        String        @unique
+  senha        String
+  nome         String
+  telefone     String?       // Campo telefone adicionado
+  isAdmin      Boolean       @default(false)
+  isMaster     Boolean       @default(false)
+  isGestor     Boolean       @default(false)
+  permissoes   Json          @default("[]") // JSON array para MySQL
+  empresaId    String?
+  empresa      Empresa?      @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  prestador    Prestador?
+  createdAt    DateTime      @default(now())
+}
+
+model Imovel {
+  id           String        @id @default(uuid())
+  rua          String
+  numero       String
+  complemento  String?
+  bairro       String
+  cidade       String
+  cep          String
+  estado       String
+  tipo         String        // casa, apartamento, comercial, etc
+  area         String?
+  quartos      String?
+  banheiros    String?
+  andar        String?
+  observacoes  String?       @db.Text
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  createdAt    DateTime      @default(now())
+}
+
+model TipoServico {
+  id           String        @id @default(uuid())
+  nome         String
+  descricao    String?       @db.Text
+  categoria    String        // elétrica, hidráulica, pintura, etc
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id])
+  solicitacoes Solicitacao[]
+  prestadores  Prestador[]
+  createdAt    DateTime      @default(now())
+}
+
+model Solicitacao {
+  id              String         @id @default(uuid())
+  titulo          String
+  descricao       String         @db.Text
+  prioridade      String         @default("media") // baixa, media, alta, urgente
+  status          String         @default("aberta") // aberta, em_andamento, concluida, cancelada
+  dataAbertura    DateTime       @default(now())
+  dataPrevista    DateTime?
+  dataConclusao   DateTime?
+  observacoes     String?        @db.Text
+  arquivos        Json           @default("[]") // JSON array para MySQL
+  usuarioId       String
+  usuario         Usuario        @relation(fields: [usuarioId], references: [id])
+  imovelId        String
+  imovel          Imovel         @relation(fields: [imovelId], references: [id])
+  tipoServicoId   String
+  tipoServico     TipoServico    @relation(fields: [tipoServicoId], references: [id])
+  prestadorId     String?
+  prestador       Prestador?     @relation(fields: [prestadorId], references: [id])
+  orcamentos      Orcamento[]
+  comentarios     Comentario[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Prestador {
+  id              String         @id @default(uuid())
+  nome            String
+  email           String         @unique
+  telefone        String
+  especialidades  Json           @default("[]") // JSON array para MySQL
+  avaliacao       Float?         @default(0)
+  ativo           Boolean        @default(true)
+  observacoes     String?        @db.Text
+  usuarioId       String         @unique
+  usuario         Usuario        @relation(fields: [usuarioId], references: [id])
+  tiposServico    TipoServico[]
+  solicitacoes    Solicitacao[]
+  orcamentos      Orcamento[]
+  createdAt       DateTime       @default(now())
+}
+
+model Orcamento {
+  id              String         @id @default(uuid())
+  valor           Float
+  descricao       String         @db.Text
+  prazoExecucao   Int            // dias
+  observacoes     String?        @db.Text
+  status          String         @default("pendente") // pendente, aprovado, rejeitado
+  dataVencimento  DateTime?
+  solicitacaoId   String
+  solicitacao     Solicitacao    @relation(fields: [solicitacaoId], references: [id])
+  prestadorId     String
+  prestador       Prestador      @relation(fields: [prestadorId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Comentario {
+  id              String         @id @default(uuid())
+  conteudo        String         @db.Text
+  tipo            String         @default("comentario") // comentario, atualizacao_status
+  solicitacaoId   String
+  solicitacao     Solicitacao    @relation(fields: [solicitacaoId], references: [id])
+  autorId         String
+  createdAt       DateTime       @default(now())
+}
+
+model Log {
+  id              String         @id @default(uuid())
+  nivel           String         // info, warn, error
+  mensagem        String         @db.Text
+  contexto        Json?          // JSON para dados adicionais
+  usuarioId       String?
+  ip              String?
+  userAgent       String?        @db.Text
+  createdAt       DateTime       @default(now())
+}
+
+model Configuracao {
+  id              String         @id @default(uuid())
+  chave           String         @unique
+  valor           String         @db.Text
+  descricao       String?
+  tipo            String         @default("string") // string, number, boolean, json
+  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime       @default(now())
+}
