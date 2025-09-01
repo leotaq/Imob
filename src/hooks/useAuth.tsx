@@ -16,7 +16,7 @@ export function useAuth() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!token) {
+    if (!token && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
       navigate('/login');
     }
   }, [token, navigate]);
