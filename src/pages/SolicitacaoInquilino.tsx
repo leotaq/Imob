@@ -104,18 +104,10 @@ const SolicitacaoInquilino = () => {
        }
        
        try {
-         const response = await fetch('http://localhost:3001/api/tipos-servico', {
-           headers: {
-             'Authorization': `Bearer ${token}`
-           }
-         });
-         
-         if (response.ok) {
-           const data = await response.json();
-           setTiposServico(data.tiposServico || []);
-         } else {
-           console.error('Erro ao carregar tipos de serviço');
-         }
+         const { apiGet } = await import('@/lib/api');
+         const data = await apiGet('/api/tipos-servico');
+         setTiposServico(data.tiposServico || []);
+
        } catch (error) {
          console.error('Erro ao carregar tipos de serviço:', error);
        } finally {
@@ -244,21 +236,8 @@ const SolicitacaoInquilino = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/solicitacoes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(novaSolicitacao)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao enviar solicitação');
-      }
-
-      const result = await response.json();
+      const { apiPost } = await import('@/lib/api');
+      const result = await apiPost('/api/solicitacoes', novaSolicitacao);
       console.log('Solicitação criada:', result.solicitacao);
       
       alert('Solicitação enviada com sucesso!');

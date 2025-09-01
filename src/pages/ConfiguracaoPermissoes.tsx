@@ -57,13 +57,7 @@ export default function ConfiguracaoPermissoes() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetch("http://localhost:3001/api/empresas", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Não autorizado");
-        return res.json();
-      })
+    import('@/lib/api').then(({ apiGet }) => apiGet('/api/empresas'))
       .then((data) => {
         setEmpresas(data.empresas);
         if (data.empresas.length > 0) {
@@ -98,16 +92,8 @@ export default function ConfiguracaoPermissoes() {
     setSucesso("");
     
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada.id}/usuarios/${gestorSelecionado.id}/permissoes`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ permissoes: permissoesEditando }),
-      });
-      
-      if (!res.ok) throw new Error("Erro ao atualizar permissões");
+      const { apiPut } = await import('@/lib/api');
+      await apiPut(`/api/empresas/${empresaSelecionada.id}/usuarios/${gestorSelecionado.id}/permissoes`, { permissoes: permissoesEditando });
       
       // Atualizar a lista local
       const empresasAtualizadas = empresas.map(empresa => {

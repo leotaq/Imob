@@ -34,15 +34,8 @@ const useOrcamentos = () => {
   const fetchOrcamentos = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/orcamentos', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Erro ao buscar orçamentos');
-      
-      const data = await response.json();
+      const { apiGet } = await import('@/lib/api');
+      const data = await apiGet('/api/orcamentos');
       setOrcamentos(data.map((orc: any) => ({
         ...orc,
         dataOrcamento: new Date(orc.dataOrcamento),
@@ -63,15 +56,8 @@ const useOrcamentos = () => {
 
   const fetchSolicitacoes = async () => {
     try {
-      const response = await fetch('/api/solicitacoes', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Erro ao buscar solicitações');
-      
-      const data = await response.json();
+      const { apiGet } = await import('@/lib/api');
+      const data = await apiGet('/api/solicitacoes');
       setSolicitacoes(data.solicitacoes.map((sol: any) => ({
         ...sol,
         dataSolicitacao: new Date(sol.dataSolicitacao),
@@ -84,15 +70,8 @@ const useOrcamentos = () => {
 
   const fetchPrestadores = async () => {
     try {
-      const response = await fetch('/api/prestadores', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Erro ao buscar prestadores');
-      
-      const data = await response.json();
+      const { apiGet } = await import('@/lib/api');
+      const data = await apiGet('/api/prestadores');
       setPrestadores(data.map((prest: any) => ({
         ...prest,
         dataCadastro: new Date(prest.dataCadastro)
@@ -226,18 +205,8 @@ const useOrcamentos = () => {
   // Criar orçamento
   const createOrcamento = async (orcamentoData: Omit<Orcamento, 'id' | 'dataOrcamento'>) => {
     try {
-      const response = await fetch('/api/orcamentos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(orcamentoData)
-      });
-      
-      if (!response.ok) throw new Error('Erro ao criar orçamento');
-      
-      const newOrcamento = await response.json();
+      const { apiPost } = await import('@/lib/api');
+      const newOrcamento = await apiPost('/api/orcamentos', orcamentoData);
       
       // Atualizar estado local
       setOrcamentos(prev => [...prev, {
@@ -267,18 +236,8 @@ const useOrcamentos = () => {
   // Atualizar orçamento
   const updateOrcamento = async (id: string, updates: Partial<Orcamento>) => {
     try {
-      const response = await fetch(`/api/orcamentos/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(updates)
-      });
-      
-      if (!response.ok) throw new Error('Erro ao atualizar orçamento');
-      
-      const updatedOrcamento = await response.json();
+      const { apiPut } = await import('@/lib/api');
+      const updatedOrcamento = await apiPut(`/api/orcamentos/${id}`, updates);
       
       // Atualizar estado local
       setOrcamentos(prev => 
@@ -312,14 +271,8 @@ const useOrcamentos = () => {
   // Deletar orçamento
   const deleteOrcamento = async (id: string) => {
     try {
-      const response = await fetch(`/api/orcamentos/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Erro ao deletar orçamento');
+      const { apiDelete } = await import('@/lib/api');
+      await apiDelete(`/api/orcamentos/${id}`);
       
       // Atualizar estado local
       setOrcamentos(prev => prev.filter(orcamento => orcamento.id !== id));

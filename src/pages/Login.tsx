@@ -35,18 +35,10 @@ const Login = () => {
         ? { email, senha }
         : { codigo: email, senha };
       
-      const res = await fetch('http://localhost:3001/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErro(data.error || 'Erro ao fazer login.');
-      } else {
-        login(data.usuario, data.token);
-        navigate('/');
-      }
+      const { apiPost } = await import('@/lib/api');
+      const data = await apiPost('/api/login', loginData);
+      login(data.usuario, data.token);
+      navigate('/');
     } catch (err) {
       setErro('Erro de conexão com o servidor.');
     } finally {

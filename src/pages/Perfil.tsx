@@ -8,16 +8,10 @@ export default function Perfil() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:3001/api/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Não autorizado");
-        return res.json();
+    import('@/lib/api').then(({ apiGet }) => apiGet('/api/me'))
+      .then((data) => {
+        setMe(data.usuario);
       })
-      .then((data) => setMe(data.usuario))
       .catch(() => setErro("Não autorizado ou token inválido."));
   }, [token]);
 

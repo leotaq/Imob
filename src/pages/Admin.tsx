@@ -24,25 +24,16 @@ export default function Admin() {
     setErro("");
     try {
       // Atualiza nome/email
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nome: editNome, email: editEmail })
-      });
-      if (!res.ok) throw new Error("Erro ao atualizar usuário.");
+      const { apiPut } = await import('@/lib/api');
+       await apiPut(`/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, { nome: editNome, email: editEmail });
       // Atualiza isGestor (se mudou)
       if (usuario.isGestor !== editGestor) {
-        await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ isGestor: editGestor })
-        });
+        const { apiPatch } = await import('@/lib/api');
+        await apiPatch(`/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, { isGestor: editGestor });
       }
       // Atualizar lista de empresas/usuários
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const empresasData = await empresasRes.json();
+      const { apiGet } = await import('@/lib/api');
+       const empresasData = await apiGet('/api/empresas');
       setEmpresas(empresasData.empresas);
       setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada?.id) || null);
       setEditandoUsuarioId(null);
@@ -56,16 +47,11 @@ export default function Admin() {
     setErro("");
     if (!window.confirm(`Tem certeza que deseja excluir o usuário ${usuario.nome}?`)) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Erro ao excluir usuário.");
+      const { apiDelete } = await import('@/lib/api');
+       await apiDelete(`/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`);
       // Atualizar lista de empresas/usuários
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const empresasData = await empresasRes.json();
+      const { apiGet } = await import('@/lib/api');
+       const empresasData = await apiGet('/api/empresas');
       setEmpresas(empresasData.empresas);
       setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada?.id) || null);
     } catch {
@@ -94,14 +80,8 @@ export default function Admin() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetch("http://localhost:3001/api/empresas", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Não autorizado");
-        return res.json();
-      })
-      .then((data) => setEmpresas(data.empresas))
+    import('@/lib/api').then(({ apiGet }) => apiGet('/api/empresas'))
+       .then((data) => setEmpresas(data.empresas))
       .catch(() => setErro("Não autorizado ou erro ao buscar empresas."))
       .finally(() => setLoading(false));
   }, [token]);
@@ -118,15 +98,10 @@ export default function Admin() {
     setErro("");
     if (!novoNomeEmpresa) return setErro("Preencha o nome da empresa.");
     try {
-      const res = await fetch("http://localhost:3001/api/empresas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nome: novoNomeEmpresa })
-      });
-      if (!res.ok) throw new Error("Erro ao cadastrar empresa.");
-      setNovoNomeEmpresa("");
-      // Recarregar empresas
-      const data = await res.json();
+      const { apiPost } = await import('@/lib/api');
+       const data = await apiPost('/api/empresas', { nome: novoNomeEmpresa });
+       setNovoNomeEmpresa("");
+       // Recarregar empresas
       setEmpresas((prev) => [...prev, { ...data.empresa, usuarios: [] }]);
     } catch {
       setErro("Erro ao cadastrar empresa.");
@@ -141,18 +116,12 @@ export default function Admin() {
     const { nome, email, senha, isGestor } = novoUsuario;
     if (!nome || !email || !senha) return setErro("Preencha todos os campos do usuário.");
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada.id}/usuarios`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nome, email, senha, isGestor })
-      });
-      if (!res.ok) throw new Error("Erro ao cadastrar usuário.");
-      setNovoUsuario({ nome: "", email: "", senha: "", isGestor: false });
-      // Recarregar empresas (simples, pode ser otimizado)
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const empresasData = await empresasRes.json();
+      const { apiPost } = await import('@/lib/api');
+       await apiPost(`/api/empresas/${empresaSelecionada.id}/usuarios`, { nome, email, senha, isGestor });
+       setNovoUsuario({ nome: "", email: "", senha: "", isGestor: false });
+       // Recarregar empresas (simples, pode ser otimizado)
+       const { apiGet } = await import('@/lib/api');
+       const empresasData = await apiGet('/api/empresas');
       setEmpresas(empresasData.empresas);
       setEmpresaSelecionada(empresasData.empresas.find((e: Empresa) => e.id === empresaSelecionada.id) || null);
     } catch {

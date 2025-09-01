@@ -30,18 +30,8 @@ export const useSolicitacoes = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:3001/api/solicitacoes', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar solicitações');
-      }
-      
-      const data = await response.json();
+      const { apiGet } = await import('@/lib/api');
+      const data = await apiGet('/api/solicitacoes');
       
       if (!data.solicitacoes || data.solicitacoes.length === 0) {
         setSolicitacoes([]);
@@ -155,18 +145,8 @@ export const useSolicitacoes = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/solicitacoes/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar status');
-      }
+      const { apiPatch } = await import('@/lib/api');
+      const data = await apiPatch(`/api/solicitacoes/${id}/status`, { status: newStatus });
       
       // Recarregar dados após atualização
       await fetchSolicitacoes();

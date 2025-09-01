@@ -46,18 +46,8 @@ const Execucao = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/execucao', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar execuções');
-      }
-      
-      const data = await response.json();
+      const { apiGet } = await import('@/lib/api');
+      const data = await apiGet('/api/execucao');
       setExecucoes(data.execucoes || []);
     } catch (error) {
       console.error('Erro ao buscar execuções:', error);

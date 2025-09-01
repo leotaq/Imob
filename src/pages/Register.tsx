@@ -124,13 +124,9 @@ export default function Register() {
         };
       }
 
-      const res = await fetch("http://localhost:3001/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dadosRegistro)
-      });
-      const data = await res.json();
-      if (!res.ok) {
+      const { apiPost } = await import('@/lib/api');
+      const data = await apiPost('/api/register', dadosRegistro);
+      if (data.error) {
         setErro(data.error || "Erro ao cadastrar.");
       } else {
         // Cadastro feito com sucesso
