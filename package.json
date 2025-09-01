@@ -12,6 +12,7 @@
     "postinstall": "prisma generate",
     "deploy:hostinger": "node hostinger-setup.js",
     "deploy:vercel": "vercel --prod",
+    "deploy:vercel:auto": "node vercel-deploy.cjs",
     "supabase:setup": "node supabase-setup.js",
     "supabase:migrate": "node migrate-supabase.js",
     "supabase:studio": "npx prisma studio",

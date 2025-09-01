@@ -1,32 +1,78 @@
-# Guia de Deploy Full-Stack no Vercel
+# Deploy na Vercel com Supabase - Guia Completo
 
-## Configurações do Projeto
+## 🚀 Arquitetura Full-Stack
 
-### Framework Detection
-- **Framework**: Vite
-- **Build Command**: `npm run build`
-- **Output Directory**: `dist`
-- **Root Directory**: `./` (raiz do projeto)
+### Stack Tecnológica
+- **Frontend**: React + Vite (Static Build)
+- **Backend**: Node.js + Express (Serverless Functions)
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth + JWT
+- **Storage**: Supabase Storage
+- **Deploy**: Vercel
 
-### Arquitetura do Deploy
-
-Este projeto está configurado para deploy full-stack no Vercel:
-- **Frontend**: Build estático com Vite (React + TypeScript)
-- **Backend**: Função serverless Node.js (`backend/index.js`)
-- **Database**: PostgreSQL (Neon/Supabase recomendados)
-- **ORM**: Prisma
-
-### Estrutura de Arquivos
-
+### Estrutura de Deploy
 ```
-├── vercel.json          # Configuração do Vercel
-├── package.json         # Dependências unificadas
-├── prisma/
-│   └── schema.prisma    # Schema do banco
-├── backend/
-│   ├── index.js         # API serverless
-│   └── ...              # Utilitários e middleware
-└── src/                 # Frontend React
+├── Frontend (Vercel Static)
+│   ├── dist/ (build do Vite)
+│   └── index.html (SPA)
+├── Backend (Vercel Serverless)
+│   └── backend/index.js (@vercel/node)
+└── Database (Supabase)
+    ├── PostgreSQL
+    ├── Auth
+    └── Storage
+```
+
+## 📋 Pré-requisitos
+
+### 1. Conta no Supabase
+1. Acesse: https://app.supabase.com
+2. Crie um novo projeto
+3. Anote as credenciais:
+   - Project URL
+   - Anon Key
+   - Service Key
+   - Database URL
+
+### 2. Vercel CLI
+```bash
+npm i -g vercel
+vercel login
+```
+
+## ⚙️ Configuração do Projeto
+
+### 1. Variáveis de Ambiente
+Copie o arquivo de exemplo:
+```bash
+cp .env.vercel.example .env.local
+```
+
+Configure suas credenciais do Supabase:
+```env
+# Supabase
+VITE_SUPABASE_URL=https://[SEU-PROJETO].supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+DATABASE_URL=postgresql://postgres:[SENHA]@db.[PROJETO].supabase.co:5432/postgres
+
+# JWT
+JWT_SECRET=seu_jwt_secret_muito_seguro
+
+# Ambiente
+NODE_ENV=production
+CORS_ORIGIN=https://seu-projeto.vercel.app
+```
+
+### 2. Configuração do Banco
+Aplique o schema no Supabase:
+```bash
+npm run supabase:migrate
+```
+
+### 3. Teste Local
+```bash
+npm run dev
 ```
 
 ## 🎯 Passos para Deploy
