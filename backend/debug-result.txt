@@ -1,0 +1,26 @@
+=== DEBUG DO BANCO DE DADOS ===
+✅ Conectado ao banco
+Total de solicitações: 5
+
+=== SOLICITAÇÕES ===
+1. ID: 2c79dbdb-6991-449e-b911-48f354bd980c   Nome: Fernanda Lima Rodrigues   Status: aberta   Usuario: d2f54c08-5cc8-483c-b226-dc2713661b7a   Data: Mon Sep 01 2025 21:07:59 GMT-0300 (Horário Padrão de Brasília)
+2. ID: 806c3203-2c28-4e28-ac39-4da331e19bf0   Nome: Carlos Eduardo Ferreira   Status: aberta   Usuario: d2f54c08-5cc8-483c-b226-dc2713661b7a   Data: Mon Sep 01 2025 21:07:59 GMT-0300 (Horário Padrão de Brasília)
+3. ID: 7133c866-716f-4bff-a28e-a6d686eaadc5   Nome: Ana Paula Costa   Status: aberta   Usuario: d2f54c08-5cc8-483c-b226-dc2713661b7a   Data: Mon Sep 01 2025 21:07:59 GMT-0300 (Horário Padrão de Brasília)
+4. ID: 74eb9253-9929-4754-b87c-c54f81bd04b5   Nome: João Carlos Oliveira   Status: aberta   Usuario: d2f54c08-5cc8-483c-b226-dc2713661b7a   Data: Mon Sep 01 2025 21:07:59 GMT-0300 (Horário Padrão de Brasília)
+5. ID: 36659d65-b618-4b05-a9a1-f7560e3af5d5   Nome: Maria Silva Santos   Status: aberta   Usuario: d2f54c08-5cc8-483c-b226-dc2713661b7a   Data: Mon Sep 01 2025 21:07:58 GMT-0300 (Horário Padrão de Brasília)
+
+Total de prestadores: 1
+
+=== PRESTADORES ===
+1. Nome: Prestador User   Email: prestador@imobigestor.com   User ID: 8d255ddd-ddff-424f-a7c9-102f260af81b   Ativo: true
+
+Total de usuários: 5
+
+=== USUÁRIOS ===
+1. Leo Master (leommaster) - Tipo: Master
+2. Master User (master@imobigestor.com) - Tipo: Master
+3. Gestor User (gestor@imobigestor.com) - Tipo: Gestor
+4. Prestador User (prestador@imobigestor.com) - Tipo: Usuario
+5. Usuario Comum (usuario@imobigestor.com) - Tipo: Usuario
+
+👋 Desconectado do banco

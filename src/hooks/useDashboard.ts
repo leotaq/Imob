@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useOrcamentos } from './useOrcamentos';
+import useOrcamentos from './useOrcamentos';
 import { useSolicitacoes } from './useSolicitacoes';
 import { Solicitacao } from '@/types';
 

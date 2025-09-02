@@ -8,7 +8,8 @@ export default function Perfil() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:3001/api/me", {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    fetch(`${API_BASE}/api/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

@@ -31,6 +31,8 @@ import { ptBR } from 'date-fns/locale';
 
 import type { ServicoSolicitado, TipoServico } from '@/types';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 const SolicitacaoInquilino = () => {
   const { usuario, token } = useAuth();
   const { solicitacoes } = useSolicitacoes();
@@ -104,7 +106,7 @@ const SolicitacaoInquilino = () => {
        }
        
        try {
-         const response = await fetch('http://localhost:3001/api/tipos-servico', {
+         const response = await fetch(`${API_BASE}/api/tipos-servico`, {
            headers: {
              'Authorization': `Bearer ${token}`
            }
@@ -244,7 +246,7 @@ const SolicitacaoInquilino = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/solicitacoes', {
+      const response = await fetch(`${API_BASE}/api/solicitacoes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -400,7 +402,7 @@ const SolicitacaoInquilino = () => {
                                   solicitacao.status === 'execucao' ? 'secondary' : 
                                   solicitacao.status === 'orcamento' ? 'outline' : 'destructive'}
                         >
-                          {solicitacao.status === 'pendente' ? 'Pendente' :
+                          {solicitacao.status === 'aberta' ? 'Aberta' :
                            solicitacao.status === 'orcamento' ? 'Orçamento' :
                            solicitacao.status === 'execucao' ? 'Em Execução' :
                            solicitacao.status === 'concluida' ? 'Concluída' :

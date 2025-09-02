@@ -62,7 +62,7 @@ export function useFileUpload(options: UseFileUploadOptions) {
       if (options.entityType) formData.append('entityType', options.entityType);
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/upload/${options.tipo}`, {
+      const response = await fetch(`${API_BASE}/api/upload/${options.tipo}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -116,7 +116,7 @@ export function useFileUpload(options: UseFileUploadOptions) {
   const deleteFile = async (filename: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/files/${options.tipo}/${filename}`, {
+      const response = await fetch(`${API_BASE}/api/files/${options.tipo}/${filename}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -158,7 +158,7 @@ export function useFileUpload(options: UseFileUploadOptions) {
   const loadFiles = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/files/${options.tipo}`, {
+      const response = await fetch(`${API_BASE}/api/files/${options.tipo}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -193,3 +193,4 @@ export function useFileUpload(options: UseFileUploadOptions) {
     setFiles
   };
 }
+const API_BASE = import.meta.env.VITE_API_URL || '';

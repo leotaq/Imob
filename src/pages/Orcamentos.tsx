@@ -64,6 +64,20 @@ const Orcamentos = () => {
   const { viewMode } = useViewMode();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<Solicitacao | null>(null);
+
+  // Função para fechar o dialog e limpar estados
+  const fecharDialog = () => {
+    setIsDialogOpen(false);
+    setSelectedSolicitacao(null);
+    setNovoOrcamento({
+      solicitacaoId: '',
+      materiais: [],
+      servicos: [],
+      observacoes: '',
+      prazoExecucao: 7,
+      taxaAdm: 10
+    });
+  };
   const [novoOrcamento, setNovoOrcamento] = useState<NovoOrcamento>({
     solicitacaoId: '',
     materiais: [],
@@ -216,8 +230,7 @@ const Orcamentos = () => {
         status: 'rascunho'
       });
       
-      setIsDialogOpen(false);
-      setSelectedSolicitacao(null);
+      fecharDialog();
     } catch (error) {
       console.error('Erro ao criar orçamento:', error);
     }
@@ -827,7 +840,13 @@ const Orcamentos = () => {
       </Tabs>
 
       {/* Dialog para Criar Novo Orçamento */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          fecharDialog();
+        } else {
+          setIsDialogOpen(true);
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -838,7 +857,7 @@ const Orcamentos = () => {
           
           <div className="space-y-6">
             {/* Informações da Solicitação */}
-            {selectedSolicitacao && (
+            {selectedSolicitacao ? (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Detalhes da Solicitação</CardTitle>
@@ -860,6 +879,11 @@ const Orcamentos = () => {
                   </div>
                 </CardContent>
               </Card>
+            ) : (
+              <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                <p className="text-red-600">⚠️ Erro: Dados da solicitação não encontrados</p>
+                <p className="text-sm text-red-500 mt-1">Por favor, feche este dialog e tente novamente.</p>
+              </div>
             )}
 
             {/* Seção de Materiais */}
@@ -1109,7 +1133,7 @@ const Orcamentos = () => {
 
             {/* Botões de Ação */}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button variant="outline" onClick={fecharDialog}>
                 Cancelar
               </Button>
               <Button onClick={salvarOrcamento}>

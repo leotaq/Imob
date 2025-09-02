@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Solicitacao } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface SolicitacaoFilters {
   search: string;
@@ -23,14 +24,20 @@ export const useSolicitacoes = () => {
     prioridade: 'todas'
   });
   const { toast } = useToast();
+  const { token } = useAuth();
 
   // Função para buscar solicitações do backend
   const fetchSolicitacoes = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:3001/api/solicitacoes', {
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_BASE}/api/solicitacoes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -38,6 +45,8 @@ export const useSolicitacoes = () => {
       });
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta:', errorText);
         throw new Error('Erro ao buscar solicitações');
       }
       
@@ -53,6 +62,7 @@ export const useSolicitacoes = () => {
         return {
           id: sol.id,
           imovelId: sol.id, // Usando o próprio ID da solicitação já que não há mais imovel separado
+          solicitanteId: sol.usuarioId, // ID do usuário que fez a solicitação
           tipoSolicitante: sol.tipoSolicitante,
           nome: sol.nomeSolicitante,
           telefone: sol.telefoneSolicitante,
@@ -152,10 +162,18 @@ export const useSolicitacoes = () => {
   };
 
   const changeStatus = async (id: string, newStatus: string) => {
+    if (!token) {
+      toast({
+        title: 'Erro de autenticação',
+        description: 'Você precisa estar logado para alterar o status.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/solicitacoes/${id}/status`, {
+      const response = await fetch(`${API_BASE}/api/solicitacoes/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

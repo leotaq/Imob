@@ -40,13 +40,14 @@ const Execucao = () => {
   const [execucoes, setExecucoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const API_BASE = import.meta.env.VITE_API_URL || '';
   
   // Buscar execuções do backend
   const fetchExecucoes = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/execucao', {
+      const response = await fetch(`${API_BASE}/api/execucao`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

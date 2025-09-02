@@ -29,12 +29,13 @@ const useOrcamentos = () => {
   });
   const { toast } = useToast();
   const { usuario } = useAuth();
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Função para buscar dados do backend
   const fetchOrcamentos = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/orcamentos', {
+      const response = await fetch(`${API_BASE}/api/orcamentos`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -43,6 +44,7 @@ const useOrcamentos = () => {
       if (!response.ok) throw new Error('Erro ao buscar orçamentos');
       
       const data = await response.json();
+      
       setOrcamentos(data.map((orc: any) => ({
         ...orc,
         dataOrcamento: new Date(orc.dataOrcamento),
@@ -63,7 +65,7 @@ const useOrcamentos = () => {
 
   const fetchSolicitacoes = async () => {
     try {
-      const response = await fetch('/api/solicitacoes', {
+      const response = await fetch(`${API_BASE}/api/solicitacoes`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -72,10 +74,15 @@ const useOrcamentos = () => {
       if (!response.ok) throw new Error('Erro ao buscar solicitações');
       
       const data = await response.json();
-      setSolicitacoes(data.solicitacoes.map((sol: any) => ({
+      
+      // A API retorna { solicitacoes: [...] }
+      const solicitacoes = data.solicitacoes || data;
+      setSolicitacoes(solicitacoes.map((sol: any) => ({
         ...sol,
         dataSolicitacao: new Date(sol.dataSolicitacao),
-        prazoDesejado: sol.prazoDesejado ? new Date(sol.prazoDesejado) : undefined
+        prazoDesejado: new Date(sol.prazoDesejado),
+        dataAprovacao: sol.dataAprovacao ? new Date(sol.dataAprovacao) : undefined,
+        dataConclusao: sol.dataConclusao ? new Date(sol.dataConclusao) : undefined
       })));
     } catch (error) {
       console.error('Erro ao buscar solicitações:', error);
@@ -84,7 +91,7 @@ const useOrcamentos = () => {
 
   const fetchPrestadores = async () => {
     try {
-      const response = await fetch('/api/prestadores', {
+      const response = await fetch(`${API_BASE}/api/prestadores`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -93,6 +100,7 @@ const useOrcamentos = () => {
       if (!response.ok) throw new Error('Erro ao buscar prestadores');
       
       const data = await response.json();
+      
       setPrestadores(data.map((prest: any) => ({
         ...prest,
         dataCadastro: new Date(prest.dataCadastro)
@@ -226,7 +234,7 @@ const useOrcamentos = () => {
   // Criar orçamento
   const createOrcamento = async (orcamentoData: Omit<Orcamento, 'id' | 'dataOrcamento'>) => {
     try {
-      const response = await fetch('/api/orcamentos', {
+      const response = await fetch(`${API_BASE}/api/orcamentos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -267,7 +275,7 @@ const useOrcamentos = () => {
   // Atualizar orçamento
   const updateOrcamento = async (id: string, updates: Partial<Orcamento>) => {
     try {
-      const response = await fetch(`/api/orcamentos/${id}`, {
+      const response = await fetch(`${API_BASE}/api/orcamentos/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -312,7 +320,7 @@ const useOrcamentos = () => {
   // Deletar orçamento
   const deleteOrcamento = async (id: string) => {
     try {
-      const response = await fetch(`/api/orcamentos/${id}`, {
+      const response = await fetch(`${API_BASE}/api/orcamentos/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -405,8 +413,4 @@ const useOrcamentos = () => {
   };
 };
 
-// Alterar de:
-// export default useOrcamentos;
-
-// Para:
-export { useOrcamentos };
+export default useOrcamentos;

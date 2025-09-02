@@ -5,18 +5,25 @@ export type ViewMode = 'usuario' | 'prestador' | 'gestor' | 'master';
 
 export function useViewMode() {
   const { usuario } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('viewMode') as ViewMode;
-    return saved || 'usuario';
-  });
+  const [viewMode, setViewMode] = useState<ViewMode>('usuario');
 
   // Atualiza o viewMode quando o usuário carrega
   useEffect(() => {
-    if (usuario && !localStorage.getItem('viewMode')) {
-      // Se o usuário é master e não há preferência salva, inicia no modo master
+    if (usuario) {
+      // Determina o viewMode correto baseado no tipo de usuário
+      let viewModeCorreto: ViewMode;
       if (usuario.isMaster) {
-        setViewMode('master');
+        viewModeCorreto = 'master';
+      } else if (usuario.isGestor) {
+        viewModeCorreto = 'gestor';
+      } else if (usuario.prestador && typeof usuario.prestador === 'object') {
+        viewModeCorreto = 'prestador';
+      } else {
+        viewModeCorreto = 'usuario';
       }
+      
+      // Define o viewMode correto
+      setViewMode(viewModeCorreto);
     }
   }, [usuario]);
 
@@ -34,7 +41,7 @@ export function useViewMode() {
     if (usuario.isGestor && (mode === 'usuario' || mode === 'gestor')) return true;
     
     // Prestador pode ver usuário e prestador (mas não gestor nem master)
-    if (usuario.prestador && (mode === 'usuario' || mode === 'prestador')) return true;
+    if (usuario.prestador && typeof usuario.prestador === 'object' && (mode === 'usuario' || mode === 'prestador')) return true;
     
     // Usuário comum só pode ver modo usuário
     if (mode === 'usuario') return true;

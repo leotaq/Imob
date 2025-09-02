@@ -44,7 +44,7 @@ export interface Solicitacao {
   solicitanteId: string;
   tipoSolicitante: 'inquilino' | 'proprietario' | 'gestor' | 'terceiros';
   servicos: ServicoSolicitado[];
-  status: 'pendente' | 'orcamento' | 'aprovada' | 'em_andamento' | 'concluida' | 'cancelada';
+  status: 'aberta' | 'orcamento' | 'aprovada' | 'execucao' | 'concluida' | 'cancelada';
   dataSolicitacao: Date;
   prazoDesejado?: Date;
   observacoesGerais?: string;
@@ -55,6 +55,14 @@ export interface Solicitacao {
     size: number;
     url: string;
   }[];
+  // Propriedades adicionais mapeadas do backend
+  nome: string; // Nome do solicitante
+  telefone: string; // Telefone do solicitante
+  endereco: string; // Endereço formatado
+  cidade: string; // Cidade
+  tipoManutencao: string; // Tipos de manutenção concatenados
+  prazoFinal?: Date; // Alias para prazoDesejado
+  descricao?: string; // Alias para observacoesGerais
 }
 
 export interface Prestador {
@@ -124,7 +132,7 @@ export interface Execucao {
   id: string;
   solicitacaoId: string;
   orcamentoId: string;
-  status: 'aberta' | 'andamento' | 'concluida';
+  status: 'aberta' | 'orcamento' | 'aprovada' | 'execucao' | 'concluida' | 'cancelada';
   dataInicio?: Date;
   dataFinalizacao?: Date;
   observacoes: string;

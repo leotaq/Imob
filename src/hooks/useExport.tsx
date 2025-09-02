@@ -130,8 +130,8 @@ export const useExport = () => {
             font-size: 12px; 
             font-weight: bold;
           }
-          .status.pendente { background-color: #fef3c7; color: #92400e; }
-          .status.em-andamento { background-color: #dbeafe; color: #1e40af; }
+          .status.aberta { background-color: #fef3c7; color: #92400e; }
+          .status.execucao { background-color: #dbeafe; color: #1e40af; }
           .status.concluida { background-color: #d1fae5; color: #065f46; }
           .status.cancelada { background-color: #fee2e2; color: #991b1b; }
           .field { margin-bottom: 8px; }

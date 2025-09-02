@@ -31,10 +31,10 @@ export const useSocket = (): UseSocketReturn => {
     }
 
     // Conectar ao socket
-    const socket = io(process.env.VITE_API_URL || 'http://localhost:3001', {
-      auth: {
-        token
-      }
+    const SOCKET_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const socket = io(SOCKET_BASE, {
+      auth: { token },
+      // path padrão do Socket.IO é '/socket.io'
     });
 
     socketRef.current = socket;

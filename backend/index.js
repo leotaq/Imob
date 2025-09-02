@@ -20,10 +20,12 @@ const {
   registroSchema,
   solicitacaoSchema, 
   prestadorSchema, 
-  orcamentoSchema 
+  orcamentoSchema,
+  tipoServicoSchema,
+  permissoesSchema
 } = require('./schemas/validation');
-
-// Importar sistema de upload
+// Adicionado: Socket Manager para WebSockets
+const socketManager = require('./utils/socketManager');
 const { upload, handleUploadError, uploadsDir } = require('./middleware/upload');
 const FileManager = require('./utils/fileManager');
 
@@ -36,23 +38,52 @@ const fileManager = new FileManager(uploadsDir);
 // Configurações de segurança
 app.use(helmet());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo 100 requests por IP
-  message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }
-});
-app.use('/api/', limiter);
+// Rate limiting removido - sem restrições de tempo
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutos
+//   max: 100, // máximo 100 requests por IP
+//   message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }
+// });
+// app.use('/api/', limiter);
 
-// Rate limiting específico para login
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5, // máximo 5 tentativas de login por IP
-  message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
-});
+// Rate limiting específico para login removido
+// const loginLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 5, // máximo 5 tentativas de login por IP
+//   message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+// });
+const loginLimiter = null; // Rate limiting desabilitado
+
+// Middleware para restringir acesso apenas ao localhost (apenas em desenvolvimento)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    const isLocalhost = clientIP === '127.0.0.1' || clientIP === '::1' || clientIP === '::ffff:127.0.0.1' || req.hostname === 'localhost';
+    
+    if (!isLocalhost) {
+      logger.warn(`Acesso negado para IP: ${clientIP}`);
+      return res.status(403).json({ error: 'Acesso permitido apenas via localhost' });
+    }
+    
+    next();
+  });
+}
 
 // Middlewares
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:8080,http://127.0.0.1:8080')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    logger.warn(`CORS bloqueado para origem: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(requestLogger);
 
@@ -304,7 +335,7 @@ app.post('/api/register', validate(registroSchema), async (req, res) => {
 });
 
 // Login de usuário com JWT
-app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => {
+app.post('/api/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, codigo, senha } = req.body;
     
@@ -320,6 +351,8 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
           senha: true,
           isAdmin: true,
           isMaster: true,
+          isGestor: true,
+          prestador: true,
           empresa: true,
           empresaId: true
         }
@@ -335,6 +368,8 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
           senha: true,
           isAdmin: true,
           isMaster: true,
+          isGestor: true,
+          prestador: true,
           empresa: true,
           empresaId: true
         }
@@ -359,7 +394,8 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
         empresaId: usuario.empresaId,
         nome: usuario.nome,
         isAdmin: usuario.isAdmin,
-        isMaster: usuario.isMaster
+        isMaster: usuario.isMaster,
+        isGestor: usuario.isGestor
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -371,7 +407,9 @@ app.post('/api/login', loginLimiter, validate(loginSchema), async (req, res) => 
       email: usuario.email,
       empresa: usuario.empresa,
       isAdmin: usuario.isAdmin,
-      isMaster: usuario.isMaster
+      isMaster: usuario.isMaster,
+      isGestor: usuario.isGestor,
+      prestador: usuario.prestador
     };
     
     logger.logAuth('Login realizado com sucesso', { 
@@ -495,7 +533,7 @@ app.delete('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, asyn
 });
 
 // Endpoint para atualizar permissões de usuário
-app.put('/api/empresas/:empresaId/usuarios/:usuarioId/permissoes', autenticarToken, async (req, res) => {
+app.put('/api/empresas/:empresaId/usuarios/:usuarioId/permissoes', autenticarToken, validate(permissoesSchema), async (req, res) => {
   try {
     const { empresaId, usuarioId } = req.params;
     const { permissoes } = req.body;
@@ -693,11 +731,11 @@ app.use(errorLogger);
 criarMaster();
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`API rodando em http://localhost:${PORT}`);
 });
-
-// Servir arquivos estáticos (uploads)
+// Inicializa o Socket.IO com o servidor HTTP do Express
+socketManager.initialize(server);
 app.use('/api/files', express.static(uploadsDir));
 
 // === ROTAS DE UPLOAD ===
@@ -826,7 +864,7 @@ app.use(handleUploadError);
 
 
 // Criar nova solicitação (autenticada)
-app.post('/api/solicitacoes', autenticarToken, async (req, res) => {
+app.post('/api/solicitacoes', autenticarToken, validate(solicitacaoSchema), async (req, res) => {
   try {
     const {
       solicitante,
@@ -1072,6 +1110,44 @@ app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
   }
 });
 
+// Criar novo tipo de serviço (admin/master)
+app.post('/api/tipos-servico', autenticarToken, validate(tipoServicoSchema), async (req, res) => {
+  try {
+    if (!req.usuario.isMaster && !req.usuario.isAdmin) {
+      logger.logAuth('Acesso negado - criação de tipo de serviço', { userId: req.usuario.id });
+      return res.status(403).json({ error: 'Acesso restrito.' });
+    }
+    
+    const { nome, categoria, descricao, ativo } = req.body;
+    
+    const tipoServico = await prisma.tipoServico.create({
+      data: {
+        nome,
+        categoria,
+        descricao,
+        ativo: ativo !== undefined ? ativo : true,
+        empresaId: req.usuario.empresaId
+      }
+    });
+    
+    logger.logDatabase('Tipo de serviço criado', { 
+      tipoServicoId: tipoServico.id,
+      nome,
+      categoria,
+      createdBy: req.usuario.id 
+    });
+    
+    res.status(201).json({ tipoServico });
+  } catch (err) {
+    if (err.code === 'P2002') {
+      logger.logDatabase('Tentativa de criar tipo de serviço duplicado', { nome: req.body.nome });
+      return res.status(400).json({ error: 'Tipo de serviço já cadastrado.' });
+    }
+    logger.logError('Erro ao criar tipo de serviço', err, { userId: req.usuario.id });
+    res.status(500).json({ error: 'Erro ao criar tipo de serviço.' });
+  }
+});
+
 // Rotas para Prestadores
 app.get('/api/prestadores', autenticarToken, async (req, res) => {
   try {
@@ -1169,7 +1245,7 @@ app.get('/api/orcamentos', autenticarToken, async (req, res) => {
   }
 });
 
-app.post('/api/orcamentos', autenticarToken, async (req, res) => {
+app.post('/api/orcamentos', autenticarToken, validate(orcamentoSchema), async (req, res) => {
   try {
     const {
       solicitacaoId,
@@ -1234,7 +1310,7 @@ app.post('/api/orcamentos', autenticarToken, async (req, res) => {
   }
 });
 
-app.put('/api/orcamentos/:id', autenticarToken, async (req, res) => {
+app.put('/api/orcamentos/:id', autenticarToken, validate(orcamentoSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;

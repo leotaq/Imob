@@ -10,6 +10,7 @@ export default function Admin() {
   const [editGestor, setEditGestor] = useState(false);
   const [editNome, setEditNome] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Editar papel gestor, nome e email do usuário
   const handleEditarUsuario = (usuario: Usuario) => {
@@ -24,7 +25,7 @@ export default function Admin() {
     setErro("");
     try {
       // Atualiza nome/email
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+      const res = await fetch(`${API_BASE}/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ nome: editNome, email: editEmail })
@@ -32,14 +33,14 @@ export default function Admin() {
       if (!res.ok) throw new Error("Erro ao atualizar usuário.");
       // Atualiza isGestor (se mudou)
       if (usuario.isGestor !== editGestor) {
-        await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+        await fetch(`${API_BASE}/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ isGestor: editGestor })
         });
       }
       // Atualizar lista de empresas/usuários
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+      const empresasRes = await fetch(`${API_BASE}/api/empresas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const empresasData = await empresasRes.json();
@@ -56,13 +57,13 @@ export default function Admin() {
     setErro("");
     if (!window.confirm(`Tem certeza que deseja excluir o usuário ${usuario.nome}?`)) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
+      const res = await fetch(`${API_BASE}/api/empresas/${empresaSelecionada?.id}/usuarios/${usuario.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Erro ao excluir usuário.");
       // Atualizar lista de empresas/usuários
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+      const empresasRes = await fetch(`${API_BASE}/api/empresas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const empresasData = await empresasRes.json();
@@ -94,7 +95,7 @@ export default function Admin() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetch("http://localhost:3001/api/empresas", {
+    fetch(`${API_BASE}/api/empresas`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
@@ -118,7 +119,7 @@ export default function Admin() {
     setErro("");
     if (!novoNomeEmpresa) return setErro("Preencha o nome da empresa.");
     try {
-      const res = await fetch("http://localhost:3001/api/empresas", {
+      const res = await fetch(`${API_BASE}/api/empresas`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ nome: novoNomeEmpresa })
@@ -141,7 +142,7 @@ export default function Admin() {
     const { nome, email, senha, isGestor } = novoUsuario;
     if (!nome || !email || !senha) return setErro("Preencha todos os campos do usuário.");
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada.id}/usuarios`, {
+      const res = await fetch(`${API_BASE}/api/empresas/${empresaSelecionada.id}/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ nome, email, senha, isGestor })
@@ -149,7 +150,7 @@ export default function Admin() {
       if (!res.ok) throw new Error("Erro ao cadastrar usuário.");
       setNovoUsuario({ nome: "", email: "", senha: "", isGestor: false });
       // Recarregar empresas (simples, pode ser otimizado)
-      const empresasRes = await fetch("http://localhost:3001/api/empresas", {
+      const empresasRes = await fetch(`${API_BASE}/api/empresas`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const empresasData = await empresasRes.json();

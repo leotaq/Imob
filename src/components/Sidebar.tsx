@@ -13,6 +13,7 @@ import {
   Plus
 } from 'lucide-react';
 
+
 const getNavigationForViewMode = (viewMode: string, usuario: any) => {
   const allPages = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard, key: 'dashboard' },
@@ -27,6 +28,14 @@ const getNavigationForViewMode = (viewMode: string, usuario: any) => {
   // Master: acesso a tudo
   if (viewMode === 'master') {
     return allPages;
+  }
+
+  // Prestador: apenas orçamentos e execução (SEMPRE, independente de permissões)
+  if (viewMode === 'prestador') {
+    return [
+      { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign, key: 'orcamentos' },
+      { name: 'Execução', href: '/execucao', icon: Wrench, key: 'execucao' },
+    ];
   }
 
   // Gestor: páginas específicas definidas
@@ -47,15 +56,6 @@ const getNavigationForViewMode = (viewMode: string, usuario: any) => {
     
     // Caso contrário, usar permissões padrão do gestor
     return gestorNavigation;
-  }
-
-  // Prestador: solicitações, orçamentos e execução
-  if (viewMode === 'prestador') {
-    return [
-      { name: 'Solicitações', href: '/solicitacoes', icon: ClipboardList, key: 'solicitacoes' },
-      { name: 'Orçamentos', href: '/orcamentos', icon: DollarSign, key: 'orcamentos' },
-      { name: 'Execução', href: '/execucao', icon: Wrench, key: 'execucao' },
-    ];
   }
 
   // Usuário comum: apenas nova solicitação

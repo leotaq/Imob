@@ -1,11 +1,18 @@
 import { useViewMode, ViewMode } from '../hooks/useViewMode';
+import { useAuth } from '../hooks/useAuth';
 
 export const ViewModeSelector = () => {
   const { viewMode, switchViewMode, getAvailableModes, getModeLabel } = useViewMode();
+  const { usuario } = useAuth();
   const availableModes = getAvailableModes();
 
   // Se só tem um modo disponível, não mostra o seletor
   if (availableModes.length <= 1) {
+    return null;
+  }
+
+  // Para prestadores, não mostra o seletor - eles devem usar apenas o modo prestador
+  if (usuario?.prestador && typeof usuario.prestador === 'object' && !usuario?.isMaster && !usuario?.isGestor) {
     return null;
   }
 

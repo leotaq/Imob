@@ -40,13 +40,25 @@ function AdminGuard({ children }: { children: JSX.Element }) {
 // Componente para redirecionar baseado no viewMode
 function HomeRedirect() {
   const { viewMode } = useViewMode();
+  const { usuario } = useAuth();
+  
+  // Verificação adicional: se o usuário é prestador mas viewMode não está correto
+  if (usuario?.prestador && typeof usuario.prestador === 'object' && viewMode !== 'prestador') {
+    // Aguarda o useViewMode corrigir automaticamente
+    return null;
+  }
   
   // Se for usuário comum, redireciona para nova solicitação
   if (viewMode === 'usuario') {
     return <Navigate to="/solicitacao-inquilino" replace />;
   }
   
-  // Para outros tipos, mostra o dashboard
+  // Se for prestador, redireciona para orçamentos
+  if (viewMode === 'prestador') {
+    return <Navigate to="/orcamentos" replace />;
+  }
+  
+  // Para master e gestor, mostra o dashboard
   return <Dashboard />;
 }
 

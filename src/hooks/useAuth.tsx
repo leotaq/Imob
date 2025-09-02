@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 export function useAuth() {
   const [usuario, setUsuario] = useState(() => {
-    const u = localStorage.getItem('usuario');
+    // Tenta primeiro 'usuario', depois 'user' para compatibilidade
+    let u = localStorage.getItem('usuario') || localStorage.getItem('user');
     if (!u) return null;
     const parsed = JSON.parse(u);
     // Garante que as propriedades booleanas sempre serão booleanos
@@ -24,14 +25,18 @@ export function useAuth() {
   function login(usuario: any, token: string) {
     setUsuario(usuario);
     setToken(token);
+    // Salva em ambas as chaves para compatibilidade
     localStorage.setItem('usuario', JSON.stringify(usuario));
+    localStorage.setItem('user', JSON.stringify(usuario));
     localStorage.setItem('token', token);
   }
 
   function logout() {
     setUsuario(null);
     setToken(null);
+    // Remove ambas as chaves
     localStorage.removeItem('usuario');
+    localStorage.removeItem('user');
     localStorage.removeItem('token');
     navigate('/login');
   }

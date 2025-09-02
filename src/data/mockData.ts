@@ -77,7 +77,7 @@ export const mockSolicitacoes: Solicitacao[] = [
         prioridade: 'alta'
       }
     ],
-    status: 'em_andamento',
+    status: 'execucao',
     dataSolicitacao: new Date('2024-01-20'),
     prazoDesejado: new Date('2024-02-01'),
     observacoesGerais: 'Vazamento no banheiro'
@@ -95,7 +95,7 @@ export const mockSolicitacoes: Solicitacao[] = [
         prioridade: 'baixa'
       }
     ],
-    status: 'pendente',
+    status: 'aberta',
     dataSolicitacao: new Date('2024-01-22'),
     prazoDesejado: new Date('2024-02-15'),
     observacoesGerais: 'Pintura completa do apartamento'

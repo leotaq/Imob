@@ -36,6 +36,7 @@ export default function ConfiguracaoPermissoes() {
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
   const [loading, setLoading] = useState(true);
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Redireciona se não for usuário master
   if (!usuario || !usuario.isMaster) {
@@ -57,7 +58,7 @@ export default function ConfiguracaoPermissoes() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetch("http://localhost:3001/api/empresas", {
+    fetch(`${API_BASE}/api/empresas`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
@@ -98,7 +99,7 @@ export default function ConfiguracaoPermissoes() {
     setSucesso("");
     
     try {
-      const res = await fetch(`http://localhost:3001/api/empresas/${empresaSelecionada.id}/usuarios/${gestorSelecionado.id}/permissoes`, {
+      const res = await fetch(`${API_BASE}/api/empresas/${empresaSelecionada.id}/usuarios/${gestorSelecionado.id}/permissoes`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

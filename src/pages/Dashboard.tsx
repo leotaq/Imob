@@ -290,7 +290,7 @@ const Dashboard = () => {
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhuma solicitação pendente
+                  Nenhuma solicitação aberta
                 </p>
               )}
             </div>
