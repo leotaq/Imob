@@ -727,6 +727,9 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
 // Middleware de tratamento de erros
 app.use(errorLogger);
 
+// Export para Vercel
+module.exports = app;
+
 // Inicialização
 criarMaster();
 
@@ -1095,13 +1098,62 @@ app.patch('/api/solicitacoes/:id/status', autenticarToken, async (req, res) => {
 // Listar tipos de serviço (autenticado)
 app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
   try {
+    // Se o usuário tem empresaId, filtrar por empresa
+    // Se não tem, buscar todos os tipos de serviço ativos
+    const whereClause = {
+      ativo: true,
+      ...(req.usuario.empresaId && { empresaId: req.usuario.empresaId })
+    };
+    
     const tiposServico = await prisma.tipoServico.findMany({
-      where: { 
-        empresaId: req.usuario.empresaId,
-        ativo: true 
-      },
+      where: whereClause,
       orderBy: { nome: 'asc' }
     });
+
+    // Se não encontrou tipos de serviço e o usuário não tem empresa,
+    // criar alguns tipos básicos
+    if (tiposServico.length === 0 && !req.usuario.empresaId) {
+      const tiposBasicos = [
+        { nome: 'Elétrica', categoria: 'Instalações', descricao: 'Serviços elétricos em geral' },
+        { nome: 'Hidráulica', categoria: 'Instalações', descricao: 'Serviços hidráulicos em geral' },
+        { nome: 'Pintura', categoria: 'Acabamento', descricao: 'Serviços de pintura' },
+        { nome: 'Limpeza', categoria: 'Manutenção', descricao: 'Serviços de limpeza' },
+        { nome: 'Jardinagem', categoria: 'Manutenção', descricao: 'Serviços de jardinagem' },
+        { nome: 'Marcenaria', categoria: 'Reparos', descricao: 'Serviços de marcenaria' },
+        { nome: 'Serralheria', categoria: 'Reparos', descricao: 'Serviços de serralheria' },
+        { nome: 'Ar Condicionado', categoria: 'Instalações', descricao: 'Instalação e manutenção de ar condicionado' }
+      ];
+      
+      // Criar uma empresa padrão se não existir
+      let empresaPadrao = await prisma.empresa.findFirst({
+        where: { nome: 'Sistema Padrão' }
+      });
+      
+      if (!empresaPadrao) {
+        empresaPadrao = await prisma.empresa.create({
+          data: { nome: 'Sistema Padrão' }
+        });
+      }
+      
+      // Criar os tipos de serviço básicos
+      const tiposServicoCriados = await Promise.all(
+        tiposBasicos.map(tipo => 
+          prisma.tipoServico.create({
+            data: {
+              ...tipo,
+              empresaId: empresaPadrao.id
+            }
+          })
+        )
+      );
+      
+      logger.info('Tipos de serviço básicos criados', { 
+        quantidade: tiposServicoCriados.length,
+        userId: req.usuario.id 
+      });
+      
+      return res.json({ tiposServico: tiposServicoCriados });
+    }
 
     res.json({ tiposServico });
   } catch (err) {

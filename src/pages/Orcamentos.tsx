@@ -213,21 +213,36 @@ const Orcamentos = () => {
       return;
     }
     
+    // Validar se há pelo menos um serviço
+    if (novoOrcamento.servicos.length === 0) {
+      console.error('Pelo menos um serviço é obrigatório');
+      return;
+    }
+    
     try {
       const totais = calcularTotais();
+      
+      // Criar itens de serviço no formato esperado pelo backend
+      const itensServico = novoOrcamento.servicos.map(servico => ({
+        descricao: servico.descricao || 'Serviço sem descrição',
+        valorMaoDeObra: servico.valorMaoDeObra || 0,
+        tempoEstimado: servico.tempoEstimado || 1,
+        materiais: novoOrcamento.materiais.map(material => ({
+          descricao: material.descricao || 'Material sem descrição',
+          quantidade: material.quantidade || 1,
+          unidade: 'un',
+          valorUnitario: material.valorUnitario || 0,
+          valorTotal: material.valorTotal || 0
+        }))
+      }));
       
       await createOrcamento({
         solicitacaoId: novoOrcamento.solicitacaoId,
         prestadorId: prestadorAtual?.id || 'master-user', // Para usuários master sem prestador
-        itensServico: [],
+        itensServico,
         taxaAdm: novoOrcamento.taxaAdm,
         prazoExecucao: novoOrcamento.prazoExecucao,
-        subtotalMateriais: totais.totalMateriais,
-        subtotalMaoDeObra: totais.totalServicos,
-        subtotal: totais.totalMateriais + totais.totalServicos,
-        valorTaxaAdm: (totais.totalMateriais + totais.totalServicos) * (novoOrcamento.taxaAdm / 100),
-        total: totais.total,
-        status: 'rascunho'
+        observacoes: novoOrcamento.observacoes
       });
       
       fecharDialog();
@@ -440,10 +455,15 @@ const Orcamentos = () => {
               </Card>
             ) : (
               solicitacoesAbertas.map((solicitacao) => {
-                // Buscar informações do imóvel
-                const imovel = solicitacao.imovel || {};
-                
-
+                // Mapear dados do imóvel que estão diretamente na solicitação
+                const imovel = {
+                  rua: solicitacao.enderecoRua || '',
+                  numero: solicitacao.enderecoNumero || '',
+                  complemento: solicitacao.enderecoComplemento || '',
+                  bairro: solicitacao.enderecoBairro || '',
+                  cidade: solicitacao.enderecoCidade || '',
+                  tipo: solicitacao.tipoImovel || ''
+                };
                 
                 return (
                   <Card key={solicitacao.id} className="hover:shadow-md transition-shadow">
@@ -513,9 +533,12 @@ const Orcamentos = () => {
                             {solicitacao.servicos.map((servico, index) => (
                               <div key={servico.id || index} className="flex items-center justify-between p-2 bg-background border rounded">
                                 <div>
-                                  <p className="text-sm font-medium">{servico.descricao}</p>
+                                  <p className="text-sm font-medium">{servico.tipoServico?.nome || servico.descricao || 'Serviço não especificado'}</p>
                                   {servico.observacoes && (
                                     <p className="text-xs text-muted-foreground">{servico.observacoes}</p>
+                                  )}
+                                  {servico.descricao && servico.tipoServico?.nome && servico.descricao !== servico.tipoServico.nome && (
+                                    <p className="text-xs text-muted-foreground mt-1">{servico.descricao}</p>
                                   )}
                                 </div>
                                 <Badge 
@@ -523,7 +546,7 @@ const Orcamentos = () => {
                                           servico.prioridade === 'alta' ? 'default' : 'secondary'}
                                   className="text-xs"
                                 >
-                                  {servico.prioridade}
+                                  {servico.prioridade || 'normal'}
                                 </Badge>
                               </div>
                             ))}
@@ -1136,10 +1159,23 @@ const Orcamentos = () => {
               <Button variant="outline" onClick={fecharDialog}>
                 Cancelar
               </Button>
-              <Button onClick={salvarOrcamento}>
+              <Button 
+                onClick={salvarOrcamento}
+                disabled={novoOrcamento.servicos.length === 0}
+                className={novoOrcamento.servicos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+              >
                 Salvar Orçamento
               </Button>
             </div>
+            
+            {/* Aviso quando não há serviços */}
+            {novoOrcamento.servicos.length === 0 && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-yellow-800 text-sm">
+                  ⚠️ Adicione pelo menos um serviço para poder salvar o orçamento.
+                </p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
