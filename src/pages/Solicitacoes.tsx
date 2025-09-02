@@ -95,13 +95,13 @@ function EditSolicitacaoForm({ solicitacao, onCancel, onSave }) {
         <div>
           <label className="block text-sm font-medium mb-1">Status</label>
           <select name="status" className="w-full border rounded px-2 py-1" value={form.status} onChange={handleChange} required>
-            <option value="pendente">Pendente</option>
+            <option value="aberta">Aberta</option>
             <option value="orcamento">Orçamento</option>
             <option value="aprovada">Aprovada</option>
             <option value="execucao">Em Execução</option>
             <option value="concluida">Concluída</option>
             <option value="paga">Paga</option>
-          </select>
+           </select>
         </div>
       </div>
       <div>
@@ -151,7 +151,7 @@ const Solicitacoes: React.FC = () => {
   } = useSolicitacoes();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [displayMode, setDisplayMode] = useState<'cards' | 'table'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<Solicitacao | null>(null);
@@ -170,7 +170,7 @@ const Solicitacoes: React.FC = () => {
   });
 
   const { usuario } = useAuth();
-  const { userViewMode } = useViewMode();
+  const { viewMode } = useViewMode();
 
   const {
     comentarios,
@@ -182,37 +182,33 @@ const Solicitacoes: React.FC = () => {
     let solicitacoesFiltradas = [...solicitacoes];
 
     // Filtrar por modo de visualização
-    if (usuario?.isMaster || usuario?.isAdmin) {
-      if (userViewMode === 'manager') {
-        // Gestor vê todas as solicitações
-        solicitacoesFiltradas = solicitacoes;
-      } else if (userViewMode === 'provider') {
-        // Prestador vê apenas solicitações relevantes
-        solicitacoesFiltradas = solicitacoes.filter(solicitacao =>
-          ['pendente', 'orcamento'].includes(solicitacao.status)
-        );
-      } else {
-        // Usuário vê apenas suas próprias solicitações
-        solicitacoesFiltradas = solicitacoes.filter(solicitacao =>
-          solicitacao.solicitanteId === usuario.id
-        );
-      }
+    if (viewMode === 'master') {
+      // Master vê todas as solicitações
+      solicitacoesFiltradas = solicitacoes;
+    } else if (viewMode === 'gestor') {
+      // Gestor vê todas as solicitações
+      solicitacoesFiltradas = solicitacoes;
+    } else if (viewMode === 'prestador') {
+      // Prestador: o backend já filtra as solicitações corretas, não aplicar filtro adicional
+      solicitacoesFiltradas = solicitacoes;
     } else {
-      // Usuários normais veem apenas suas próprias solicitações
+      // Usuário vê apenas suas próprias solicitações
       solicitacoesFiltradas = solicitacoes.filter(solicitacao =>
         solicitacao.solicitanteId === usuario?.id
       );
     }
-
+    
     // Aplicar filtro de busca
-    return solicitacoesFiltradas.filter(solicitacao =>
+    const resultado = solicitacoesFiltradas.filter(solicitacao =>
       solicitacao.imovelId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       solicitacao.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       solicitacao.tipoManutencao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       solicitacao.endereco.toLowerCase().includes(searchTerm.toLowerCase()) ||
       solicitacao.cidade.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [solicitacoes, searchTerm, usuario, userViewMode]);
+    
+    return resultado;
+  }, [solicitacoes, searchTerm, usuario, viewMode]);
 
   const paginatedSolicitacoes = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -244,7 +240,7 @@ const Solicitacoes: React.FC = () => {
       await createSolicitacao({
         ...data,
         id: generateUniqueId(),
-        status: 'pendente',
+        status: 'aberta',
         dataCriacao: new Date().toISOString(),
         anexos: uploadedFiles
       });
@@ -332,9 +328,9 @@ const Solicitacoes: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Solicitações</h1>
           <p className="text-muted-foreground mt-1">
-            {userViewMode === 'manager'
+            {viewMode === 'gestor'
               ? 'Gerencie todas as solicitações de manutenção do sistema'
-              : userViewMode === 'provider'
+              : viewMode === 'prestador'
               ? 'Visualize oportunidades de orçamento disponíveis'
               : 'Gerencie suas solicitações de manutenção'
             }
@@ -364,17 +360,17 @@ const Solicitacoes: React.FC = () => {
           {/* Alternância entre cards e tabela */}
           <div className="flex border rounded-lg p-1">
             <Button
-              variant={viewMode === 'cards' ? 'default' : 'ghost'}
+              variant={displayMode === 'cards' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setViewMode('cards')}
+              onClick={() => setDisplayMode('cards')}
               className="h-8 px-3"
             >
               <Grid className="h-4 w-4" />
             </Button>
             <Button
-              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              variant={displayMode === 'table' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setViewMode('table')}
+              onClick={() => setDisplayMode('table')}
               className="h-8 px-3"
             >
               <List className="h-4 w-4" />
@@ -382,7 +378,7 @@ const Solicitacoes: React.FC = () => {
           </div>
 
           {/* Botão Nova Solicitação - condicional baseado no modo de visualização */}
-          {userViewMode !== 'provider' && (
+          {viewMode !== 'prestador' && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -595,7 +591,7 @@ const Solicitacoes: React.FC = () => {
           </Card>
         ) : (
           <>
-            {viewMode === 'cards' ? (
+            {displayMode === 'cards' ? (
               <div className="space-y-4">
                 {paginatedSolicitacoes.map((solicitacao) => (
                   <SolicitacaoCard
@@ -671,7 +667,7 @@ const Solicitacoes: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <Badge variant={selectedSolicitacao.status === 'pendente' ? 'destructive' : 'default'}>
+                  <Badge variant={selectedSolicitacao.status === 'aberta' ? 'destructive' : 'default'}>
                     {selectedSolicitacao.status}
                   </Badge>
                 </div>
@@ -778,7 +774,7 @@ const Solicitacoes: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-medium text-muted-foreground">Status</p>
-                    <Badge variant={selectedSolicitacao.status === 'pendente' ? 'destructive' : 'default'}>
+                    <Badge variant={selectedSolicitacao.status === 'aberta' ? 'destructive' : 'default'}>
                       {selectedSolicitacao.status}
                     </Badge>
                   </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useOrcamentos } from '@/hooks/useOrcamentos';
+import useOrcamentos from '@/hooks/useOrcamentos';
 import { useAuth } from '@/hooks/useAuth';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -230,17 +230,17 @@ const Orcamentos = () => {
   const solicitacoesAbertas = useMemo(() => {
     // Se for usuário master ou admin, mostrar baseado no modo de visualização
     if (usuario?.isMaster || usuario?.isAdmin) {
-      if (viewMode === 'manager') {
+      if (viewMode === 'gestor') {
         // Modo gestor: ver todas as solicitações abertas
         return solicitacoes.filter(solicitacao => 
-          ['pendente', 'orcamento'].includes(solicitacao.status)
+          ['aberta', 'orcamento'].includes(solicitacao.status)
         );
-      } else if (viewMode === 'provider') {
+      } else if (viewMode === 'prestador') {
         // Modo prestador: ver como se fosse um prestador
         if (!prestadorAtual) return [];
         
         return solicitacoes.filter(solicitacao => {
-          if (!['pendente', 'orcamento'].includes(solicitacao.status)) {
+          if (!['aberta', 'orcamento'].includes(solicitacao.status)) {
             return false;
           }
           
@@ -266,20 +266,19 @@ const Orcamentos = () => {
         // Modo usuário: ver apenas suas próprias solicitações
         return solicitacoes.filter(solicitacao => 
           solicitacao.usuarioId === usuario.id &&
-          ['pendente', 'orcamento'].includes(solicitacao.status)
+          ['aberta', 'orcamento'].includes(solicitacao.status)
         );
       }
     }
     
+    // Para usuários não master/admin (prestadores normais)
     if (!prestadorAtual) return [];
     
     return solicitacoes.filter(solicitacao => {
-      // Apenas solicitações pendentes/orçamento
-      if (!['pendente', 'orcamento'].includes(solicitacao.status)) {
+      if (!['aberta', 'orcamento'].includes(solicitacao.status)) {
         return false;
       }
       
-      // Verificar se já existe um orçamento aprovado de OUTRO prestador
       const temOrcamentoAprovadoOutroPrestador = orcamentos.some(orc => 
         orc.solicitacaoId === solicitacao.id && 
         (orc.status === 'aprovado' || orc.isPrincipal) &&
@@ -290,7 +289,6 @@ const Orcamentos = () => {
         return false;
       }
       
-      // Verificar se o prestador atual já enviou um orçamento FINALIZADO
       const jaEnviouOrcamentoFinalizado = orcamentos.some(orc => 
         orc.solicitacaoId === solicitacao.id && 
         orc.prestadorId === prestadorAtual.id && 
@@ -305,12 +303,12 @@ const Orcamentos = () => {
   const historicoSolicitacoes = useMemo(() => {
     // Se for usuário master ou admin, mostrar baseado no modo de visualização
     if (usuario?.isMaster || usuario?.isAdmin) {
-      if (viewMode === 'manager') {
+      if (viewMode === 'gestor') {
         // Modo gestor: ver todas as solicitações em execução/concluídas
         return solicitacoes.filter(solicitacao => 
           ['execucao', 'concluida', 'paga'].includes(solicitacao.status)
         );
-      } else if (viewMode === 'provider') {
+      } else if (viewMode === 'prestador') {
         // Modo prestador: ver histórico como prestador
         if (!prestadorAtual) return [];
         
@@ -461,8 +459,8 @@ const Orcamentos = () => {
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <Badge variant={solicitacao.status === 'pendente' ? 'destructive' : 'default'}>
-                            {solicitacao.status === 'pendente' ? 'Pendente' : 'Em Orçamento'}
+                          <Badge variant={solicitacao.status === 'aberta' ? 'destructive' : 'default'}>
+                            {solicitacao.status === 'aberta' ? 'Aberta' : 'Em Orçamento'}
                           </Badge>
                           {contarOrcamentosEnviados(solicitacao.id) > 0 && (
                             <Badge variant="outline" className="text-xs">
@@ -732,10 +730,10 @@ const Orcamentos = () => {
               let orcamentosFiltrados = [];
               
               if (usuario?.isMaster || usuario?.isAdmin) {
-                if (viewMode === 'manager') {
+                if (viewMode === 'gestor') {
                   // Modo gestor: ver todos os orçamentos
                   orcamentosFiltrados = orcamentos;
-                } else if (viewMode === 'provider') {
+                } else if (viewMode === 'prestador') {
                   // Modo prestador: ver apenas orçamentos do prestador atual
                   orcamentosFiltrados = orcamentos.filter(orc => orc.prestadorId === prestadorAtual?.id);
                 } else {
@@ -747,16 +745,20 @@ const Orcamentos = () => {
                 }
               } else {
                 // Usuário normal: ver apenas seus próprios orçamentos
-                orcamentosFiltrados = orcamentos.filter(orc => orc.prestadorId === usuario?.id);
+                if (prestadorAtual) {
+                  orcamentosFiltrados = orcamentos.filter(orc => orc.prestadorId === prestadorAtual.id);
+                } else {
+                  orcamentosFiltrados = [];
+                }
               }
               
               return orcamentosFiltrados.length === 0 ? (
                 <Card>
                   <CardContent className="flex items-center justify-center py-8">
                     <p className="text-muted-foreground">
-                      {viewMode === 'manager' 
-                        ? 'Nenhum orçamento foi criado ainda.' 
-                        : viewMode === 'provider'
+                      {viewMode === 'gestor' 
+                         ? 'Nenhum orçamento foi criado ainda.' 
+                         : viewMode === 'prestador'
                         ? 'Você ainda não criou nenhum orçamento.'
                         : 'Nenhum orçamento foi recebido para suas solicitações.'}
                     </p>
