@@ -93,7 +93,8 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     message: 'API funcionando corretamente',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.1' // Força redeploy
   });
 });
 
