@@ -11,10 +11,18 @@
     {
       "src": "backend/index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "backend/health-lite.js",
+      "use": "@vercel/node"
     }
   ],
   "installCommand": "npm ci || npm install && cd backend && npm ci || npm install && npm run generate && cd ..",
   "routes": [
+    {
+      "src": "/api/health-lite",
+      "dest": "backend/health-lite.js"
+    },
     {
       "src": "/api/(.*)",
       "dest": "backend/index.js",
