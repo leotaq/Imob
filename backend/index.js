@@ -32,6 +32,7 @@ const FileManager = require('./utils/fileManager');
 const JWT_SECRET = process.env.JWT_SECRET || 'segredo_super_secreto';
 
 const app = express();
+const isVercel = !!process.env.VERCEL;
 // Prisma client reuse for serverless (Vercel) to avoid exhausting connections
 const globalForPrisma = global;
 if (!globalForPrisma.prisma) {
@@ -780,19 +781,21 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
 // Middleware de tratamento de erros
 app.use(errorLogger);
 
-// Export para Vercel
-module.exports = app;
-
-// Inicialização
+// Inicialização mínima (evitar bind de porta em Vercel)
 criarMaster();
 
-const PORT = process.env.PORT || 3001;
-const server = app.listen(PORT, () => {
-  logger.info(`API rodando em http://localhost:${PORT}`);
-});
-// Inicializa o Socket.IO com o servidor HTTP do Express
-socketManager.initialize(server);
-app.use('/api/files', express.static(uploadsDir));
+if (!isVercel) {
+  const PORT = process.env.PORT || 3001;
+  const server = app.listen(PORT, () => {
+    logger.info(`API rodando em http://localhost:${PORT}`);
+  });
+  // Inicializa o Socket.IO somente fora da Vercel (serverless não suporta WS)
+  socketManager.initialize(server);
+  app.use('/api/files', express.static(uploadsDir));
+}
+
+// Export para Vercel
+module.exports = app;
 
 // === ROTAS DE UPLOAD ===
 
