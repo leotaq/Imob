@@ -25,6 +25,10 @@
         "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
       }
     },
+      {
+        "src": "/api/health-lite",
+        "dest": "backend/health-lite.js"
+      },
     {
       "src": "/assets/(.*)",
       "dest": "/dist/assets/$1"
