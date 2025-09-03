@@ -70,24 +70,20 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Middlewares
-const defaultOrigins = process.env.NODE_ENV === 'production' 
-  ? 'https://imob-v1.vercel.app,https://imobigestor.vercel.app'
-  : 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173';
-
-const allowedOrigins = (process.env.CORS_ORIGIN || defaultOrigins)
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    logger.warn(`CORS bloqueado para origem: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true
-}));
+// Configuração de CORS - Simplificada para Vercel
+if (process.env.NODE_ENV === 'production') {
+  // Em produção, o CORS é gerenciado pelo vercel.json
+  app.use(cors({
+    origin: true,
+    credentials: true
+  }));
+} else {
+  // Em desenvolvimento, permite localhost
+  app.use(cors({
+    origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    credentials: true
+  }));
+}
 app.use(express.json({ limit: '10mb' }));
 app.use(requestLogger);
 
