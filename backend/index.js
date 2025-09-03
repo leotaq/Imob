@@ -193,7 +193,7 @@ app.get('/api/empresas', autenticarToken, async (req, res) => {
       return res.status(403).json({ error: 'Acesso restrito.' });
     }
     
-    const empresas = await prisma.empresa.findMany({
+  const empresas = await getPrisma().empresa.findMany({
       include: {
         usuarios: {
           select: { id: true, nome: true, email: true, isGestor: true, permissoes: true }
@@ -218,7 +218,7 @@ app.post('/api/empresas', autenticarToken, validate(empresaSchema), async (req, 
     }
     
     const { nome } = req.body;
-    const empresa = await prisma.empresa.create({ data: { nome } });
+  const empresa = await getPrisma().empresa.create({ data: { nome } });
     
     logger.logDatabase('Empresa criada', { empresaId: empresa.id, nome, userId: req.usuario.id });
     res.status(201).json({ empresa });
@@ -239,7 +239,7 @@ app.post('/api/empresas/:empresaId/usuarios', autenticarToken, validate(usuarioS
     const { empresaId } = req.params;
     const { nome, email, senha, isGestor } = req.body;
     
-    const usuario = await prisma.usuario.create({
+  const usuario = await getPrisma().usuario.create({
       data: {
         nome,
         email,
@@ -264,7 +264,7 @@ app.post('/api/empresas/:empresaId/usuarios', autenticarToken, validate(usuarioS
 // Listar usuários da empresa
 app.get('/api/usuarios', autenticarToken, async (req, res) => {
   try {
-    const usuarios = await prisma.usuario.findMany({
+  const usuarios = await getPrisma().usuario.findMany({
       where: { empresaId: req.usuario.empresaId },
       select: { id: true, nome: true, email: true, isAdmin: true }
     });
@@ -288,7 +288,7 @@ async function gerarCodigoUsuario() {
     const numero = (totalUsuarios + tentativas + 1).toString().padStart(3, '0');
     codigo = `USR${numero}`;
     
-    const existeCodigo = await prisma.usuario.findUnique({
+  const existeCodigo = await getPrisma().usuario.findUnique({
       where: { codigo }
     });
     
@@ -415,7 +415,7 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
     
     let usuario;
     if (email) {
-      usuario = await prisma.usuario.findUnique({
+  usuario = await getPrisma().usuario.findUnique({
         where: { email },
         select: {
           id: true,
@@ -432,7 +432,7 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
         }
       });
     } else if (codigo) {
-      usuario = await prisma.usuario.findUnique({
+  usuario = await getPrisma().usuario.findUnique({
         where: { codigo },
         select: {
           id: true,
@@ -1250,7 +1250,7 @@ app.post('/api/tipos-servico', autenticarToken, validate(tipoServicoSchema), asy
     
     const { nome, categoria, descricao, ativo } = req.body;
     
-    const tipoServico = await prisma.tipoServico.create({
+  const tipoServico = await getPrisma().tipoServico.create({
       data: {
         nome,
         categoria,
