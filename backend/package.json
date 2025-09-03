@@ -1,5 +1,5 @@
 {
-  "name": "backend",
+  "name": "imobigestor-backend",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -14,11 +14,11 @@
   "keywords": [
     "imobiliaria",
     "gestao",
-    "manutencao"
+    "imobigestor"
   ],
   "author": "LA Studio",
   "license": "ISC",
-  "description": "Sistema de gestão de manutenção imobiliária",
+  "description": "ImobiGestor - Sistema de Gestão Imobiliária",
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "bcrypt": "^6.0.0",
