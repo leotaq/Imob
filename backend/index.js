@@ -38,17 +38,8 @@ if (process.env.POOLER_URL && !process.env.DATABASE_URL) {
   process.env.DATABASE_URL = process.env.POOLER_URL;
 }
 if (!globalForPrisma.prisma) {
-  try {
-    if (process.env.DATABASE_URL) {
-      globalForPrisma.prisma = new PrismaClient();
-    } else {
-      // Só criaremos a instancia quando realmente necessário
-      globalForPrisma.prisma = null;
-    }
-  } catch (e) {
-    logger.logError('Falha ao inicializar Prisma', e);
-    globalForPrisma.prisma = null;
-  }
+  // Inicialização preguiçosa: só criaremos a instância quando necessário em getPrisma()
+  globalForPrisma.prisma = null;
 }
 let prisma = globalForPrisma.prisma;
 function getPrisma() {
