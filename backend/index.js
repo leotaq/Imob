@@ -796,8 +796,8 @@ if (!isVercel) {
   app.use('/api/files', express.static(uploadsDir));
 }
 
-// Export para Vercel
-module.exports = app;
+// Export para Vercel (handler baseado no Express)
+module.exports = (req, res) => app(req, res);
 
 // === ROTAS DE UPLOAD ===
 
