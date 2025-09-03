@@ -2,32 +2,30 @@
 
 ## Variáveis de Ambiente Necessárias
 
-Para que o sistema funcione corretamente no Vercel, você precisa configurar as seguintes variáveis de ambiente no painel do Vercel:
-
-### 1. Configurações do Supabase
+### Frontend (VITE_*)
 ```
-SUPABASE_URL=sua_url_do_supabase
-SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
-SUPABASE_SERVICE_ROLE_KEY=sua_chave_de_servico_do_supabase
-VITE_SUPABASE_URL=sua_url_do_supabase
-VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+VITE_API_URL=https://imob-v1.vercel.app/api
+VITE_SUPABASE_URL=https://zdigzvlpwxmojyohzrfj.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkaWd6dmxwd3htb2p5b2h6cmZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NzE0NzQsImV4cCI6MjA1MDU0NzQ3NH0.8vQJU8W8X9Y7Z6A5B4C3D2E1F0G9H8I7J6K5L4M3N2O1P0Q9R8S7T6U5V4W3X2Y1Z0
 ```
 
-### 2. Configurações da API
+### Backend
 ```
-VITE_API_URL=https://seu-projeto.vercel.app/api
-CORS_ORIGIN=https://seu-projeto.vercel.app
+CORS_ORIGIN=https://imob-v1.vercel.app,https://imobigestor.vercel.app
+SUPABASE_URL=https://zdigzvlpwxmojyohzrfj.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkaWd6dmxwd3htb2p5b2h6cmZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NzE0NzQsImV4cCI6MjA1MDU0NzQ3NH0.8vQJU8W8X9Y7Z6A5B4C3D2E1F0G9H8I7J6K5L4M3N2O1P0Q9R8S7T6U5V4W3X2Y1Z0
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 ```
 
-### 3. Configurações de Segurança
+### Segurança
 ```
-JWT_SECRET=seu_jwt_secret_super_seguro_aqui
+JWT_SECRET=sua_chave_secreta_super_forte_aqui_com_pelo_menos_32_caracteres_imobigestor_2024
 NODE_ENV=production
 ```
 
-### 4. Configurações do Banco de Dados
+### Banco de Dados
 ```
-DATABASE_URL=sua_connection_string_do_postgresql
+DATABASE_URL=postgresql://postgres:%23L1e2o3ariele@db.bywqzabvdtnbsrrgpwek.supabase.co:5432/postgres
 ```
 
 ## Como Configurar no Vercel
