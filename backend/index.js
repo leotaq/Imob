@@ -91,6 +91,16 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(requestLogger);
 
+// Endpoint de teste para verificar se a API está funcionando
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'API funcionando corretamente',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Middleware para proteger rotas
 function autenticarToken(req, res, next) {
   const authHeader = req.headers['authorization'];

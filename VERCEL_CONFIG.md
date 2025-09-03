@@ -37,7 +37,16 @@ DATABASE_URL=sua_connection_string_do_postgresql
 3. Vá para a aba "Settings"
 4. Clique em "Environment Variables"
 5. Adicione cada variável listada acima
-6. Faça um novo deploy do projeto
+6. **IMPORTANTE**: Substitua `seu-projeto` pela URL real do seu projeto no Vercel
+7. Faça um novo deploy do projeto
+
+## Testando a Configuração
+
+Após o deploy, teste primeiro o endpoint de saúde da API:
+- Acesse: `https://seu-projeto.vercel.app/api/health`
+- Deve retornar: `{"status": "OK", "message": "API funcionando corretamente"}`
+
+Se o endpoint de saúde funcionar, teste o login na aplicação.
 
 ## Problemas Comuns
 
