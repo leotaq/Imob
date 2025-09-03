@@ -1,7 +1,8 @@
 // Configuração centralizada da API
 
 // URL base da API baseada no ambiente
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_BASE_URL = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
 
 // Helper para fazer requisições autenticadas
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {

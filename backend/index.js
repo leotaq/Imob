@@ -55,7 +55,7 @@ app.use(helmet());
 const loginLimiter = null; // Rate limiting desabilitado
 
 // Middleware para restringir acesso apenas ao localhost (apenas em desenvolvimento)
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
     const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
     const isLocalhost = clientIP === '127.0.0.1' || clientIP === '::1' || clientIP === '::ffff:127.0.0.1' || req.hostname === 'localhost';
@@ -70,7 +70,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Middlewares
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:8080,http://127.0.0.1:8080')
+const defaultOrigins = process.env.NODE_ENV === 'production' 
+  ? 'https://imob-v1.vercel.app,https://imobigestor.vercel.app'
+  : 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173';
+
+const allowedOrigins = (process.env.CORS_ORIGIN || defaultOrigins)
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
