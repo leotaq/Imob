@@ -1,6 +1,5 @@
 const express = require('express');
 require('dotenv').config();
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -57,7 +56,9 @@ function getPrisma() {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL não configurada');
     }
-    prisma = new PrismaClient();
+  // Importar PrismaClient apenas quando necessário
+  const { PrismaClient } = require('@prisma/client');
+  prisma = new PrismaClient();
     globalForPrisma.prisma = prisma;
   }
   return prisma;
