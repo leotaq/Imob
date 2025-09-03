@@ -34,6 +34,14 @@
       "dest": "/dist/index.html"
     }
   ],
+  "functions": {
+    "backend/index.js": {
+      "includeFiles": [
+        "backend/node_modules/@prisma/client/**",
+        "backend/node_modules/.prisma/**"
+      ]
+    }
+  },
   "env": {
   "NODE_ENV": "production"
   }

@@ -33,16 +33,35 @@ const JWT_SECRET = process.env.JWT_SECRET || 'segredo_super_secreto';
 
 const app = express();
 const isVercel = !!process.env.VERCEL;
-// Prisma client reuse for serverless (Vercel) to avoid exhausting connections
+// Prisma client reuse for serverless (Vercel) e inicialização segura
 const globalForPrisma = global;
-if (!globalForPrisma.prisma) {
-  // Prefer pooler URL on serverless if provided
-  if (process.env.POOLER_URL && !process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.POOLER_URL;
-  }
-  globalForPrisma.prisma = new PrismaClient();
+if (process.env.POOLER_URL && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.POOLER_URL;
 }
-const prisma = globalForPrisma.prisma;
+if (!globalForPrisma.prisma) {
+  try {
+    if (process.env.DATABASE_URL) {
+      globalForPrisma.prisma = new PrismaClient();
+    } else {
+      // Só criaremos a instancia quando realmente necessário
+      globalForPrisma.prisma = null;
+    }
+  } catch (e) {
+    logger.logError('Falha ao inicializar Prisma', e);
+    globalForPrisma.prisma = null;
+  }
+}
+let prisma = globalForPrisma.prisma;
+function getPrisma() {
+  if (!prisma) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL não configurada');
+    }
+    prisma = new PrismaClient();
+    globalForPrisma.prisma = prisma;
+  }
+  return prisma;
+}
 const fileManager = new FileManager(uploadsDir);
 
 // Configurações de segurança
@@ -133,7 +152,7 @@ app.get('/api/debug-env', (req, res) => {
 // DB health check to validate Prisma/Supabase connectivity from Vercel
 app.get('/api/db-health', async (req, res) => {
   try {
-    const now = await prisma.$queryRaw`SELECT NOW()`;
+  const now = await getPrisma().$queryRaw`SELECT NOW()`;
     res.json({ ok: true, now });
   } catch (error) {
     logger.logError('DB Health failed', error);
@@ -260,7 +279,7 @@ app.get('/api/usuarios', autenticarToken, async (req, res) => {
 // Cadastro de empresa e usuário admin
 // Função para gerar código único de usuário
 async function gerarCodigoUsuario() {
-  const totalUsuarios = await prisma.usuario.count();
+  const totalUsuarios = await getPrisma().usuario.count();
   let codigo;
   let tentativas = 0;
   
@@ -291,7 +310,7 @@ app.post('/api/register', validate(registroSchema), async (req, res) => {
     
     // Verificar se o código personalizado já existe
     if (codigoUsuario) {
-      const codigoExistente = await prisma.usuario.findUnique({
+  const codigoExistente = await getPrisma().usuario.findUnique({
         where: { codigo: codigoUsuario }
       });
       
@@ -306,7 +325,7 @@ app.post('/api/register', validate(registroSchema), async (req, res) => {
     
     if (tipoUsuario === 'prestador') {
       // Registrar prestador sem empresa
-      const usuario = await prisma.usuario.create({
+    const usuario = await getPrisma().usuario.create({
         data: {
           nome,
           email,
@@ -350,7 +369,7 @@ app.post('/api/register', validate(registroSchema), async (req, res) => {
       });
     } else {
       // Registrar usuário comum sem empresa
-      const usuario = await prisma.usuario.create({
+  const usuario = await getPrisma().usuario.create({
         data: {
           nome,
           email,
@@ -485,7 +504,7 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
 // Rota protegida para dados do usuário
 app.get('/api/me', autenticarToken, async (req, res) => {
   try {
-    const usuario = await prisma.usuario.findUnique({
+  const usuario = await getPrisma().usuario.findUnique({
       where: { id: req.usuario.id },
       include: { empresa: true }
     });
@@ -513,7 +532,7 @@ app.patch('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, async
     const { empresaId, usuarioId } = req.params;
     const { isGestor } = req.body;
     
-    const usuario = await prisma.usuario.update({
+  const usuario = await getPrisma().usuario.update({
       where: { id: usuarioId },
       data: { isGestor: !!isGestor }
     });
@@ -543,7 +562,7 @@ app.put('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, validat
     const { usuarioId } = req.params;
     const { nome, email } = req.body;
     
-    const usuario = await prisma.usuario.update({
+  const usuario = await getPrisma().usuario.update({
       where: { id: usuarioId },
       data: { nome, email }
     });
@@ -572,7 +591,7 @@ app.delete('/api/empresas/:empresaId/usuarios/:usuarioId', autenticarToken, asyn
     
     const { usuarioId } = req.params;
     
-    await prisma.usuario.delete({ where: { id: usuarioId } });
+  await getPrisma().usuario.delete({ where: { id: usuarioId } });
     
     logger.logDatabase('Usuário excluído', { 
       usuarioId, 
@@ -604,7 +623,7 @@ app.put('/api/empresas/:empresaId/usuarios/:usuarioId/permissoes', autenticarTok
     }
 
     // Verificar se o usuário existe e pertence à empresa
-    const usuarioExistente = await prisma.usuario.findFirst({
+  const usuarioExistente = await getPrisma().usuario.findFirst({
       where: {
         id: usuarioId,
         empresaId: empresaId
@@ -621,7 +640,7 @@ app.put('/api/empresas/:empresaId/usuarios/:usuarioId/permissoes', autenticarTok
     }
 
     // Atualizar as permissões
-    const usuarioAtualizado = await prisma.usuario.update({
+  const usuarioAtualizado = await getPrisma().usuario.update({
       where: { id: usuarioId },
       data: { permissoes: permissoes }
     });
@@ -650,7 +669,7 @@ async function criarMaster() {
     const masterNome = process.env.MASTER_NAME || 'Leo Master';
     const masterEmpresaNome = process.env.MASTER_COMPANY || 'Master';
 
-    const jaExiste = await prisma.usuario.findFirst({ 
+  const jaExiste = await getPrisma().usuario.findFirst({ 
       where: { email: masterEmail, isMaster: true } 
     });
     
@@ -659,13 +678,13 @@ async function criarMaster() {
       return;
     }
 
-    let empresa = await prisma.empresa.findFirst({ where: { nome: masterEmpresaNome } });
+  let empresa = await getPrisma().empresa.findFirst({ where: { nome: masterEmpresaNome } });
     if (!empresa) {
-      empresa = await prisma.empresa.create({ data: { nome: masterEmpresaNome } });
+  empresa = await getPrisma().empresa.create({ data: { nome: masterEmpresaNome } });
       logger.logDatabase('Empresa Master criada', { empresaId: empresa.id });
     }
 
-    await prisma.usuario.create({
+  await getPrisma().usuario.create({
       data: {
         nome: masterNome,
         email: masterEmail,
@@ -697,7 +716,7 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
     // Se for prestador, só pode ver execuções onde tem orçamento aprovado
     if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
       // Buscar o prestador associado ao usuário
-      const prestador = await prisma.prestador.findFirst({
+  const prestador = await getPrisma().prestador.findFirst({
         where: { usuarioId: usuario.id }
       });
       
@@ -706,7 +725,7 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
       }
       
       // Buscar solicitações onde o prestador tem orçamento aprovado
-      const orcamentosAprovados = await prisma.orcamento.findMany({
+  const orcamentosAprovados = await getPrisma().orcamento.findMany({
         where: {
           prestadorId: prestador.id,
           status: 'aprovado'
@@ -725,7 +744,7 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
       };
     }
     
-    const execucoes = await prisma.solicitacao.findMany({
+  const execucoes = await getPrisma().solicitacao.findMany({
       where: whereClause,
       include: {
         imovel: true,
@@ -947,7 +966,7 @@ app.post('/api/solicitacoes', autenticarToken, validate(solicitacaoSchema), asyn
     });
 
     // Criar solicitação com dados do imóvel incorporados
-    const solicitacao = await prisma.solicitacao.create({
+  const solicitacao = await getPrisma().solicitacao.create({
       data: {
         // Dados do solicitante
         nomeSolicitante: solicitante.nome,
@@ -1063,7 +1082,7 @@ app.get('/api/solicitacoes', autenticarToken, async (req, res) => {
       };
     }
     
-    const solicitacoes = await prisma.solicitacao.findMany({
+  const solicitacoes = await getPrisma().solicitacao.findMany({
       where: whereClause,
       include: {
         servicos: {
@@ -1091,7 +1110,7 @@ app.get('/api/solicitacoes/:id', autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const solicitacao = await prisma.solicitacao.findFirst({
+  const solicitacao = await getPrisma().solicitacao.findFirst({
       where: { 
         id
       },
@@ -1125,7 +1144,7 @@ app.patch('/api/solicitacoes/:id/status', autenticarToken, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const solicitacao = await prisma.solicitacao.update({
+  const solicitacao = await getPrisma().solicitacao.update({
       where: { id },
       data: { status },
       include: {
@@ -1163,7 +1182,7 @@ app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
       ...(req.usuario.empresaId && { empresaId: req.usuario.empresaId })
     };
     
-    const tiposServico = await prisma.tipoServico.findMany({
+  const tiposServico = await getPrisma().tipoServico.findMany({
       where: whereClause,
       orderBy: { nome: 'asc' }
     });
@@ -1183,12 +1202,12 @@ app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
       ];
       
       // Criar uma empresa padrão se não existir
-      let empresaPadrao = await prisma.empresa.findFirst({
+  let empresaPadrao = await getPrisma().empresa.findFirst({
         where: { nome: 'Sistema Padrão' }
       });
       
       if (!empresaPadrao) {
-        empresaPadrao = await prisma.empresa.create({
+  empresaPadrao = await getPrisma().empresa.create({
           data: { nome: 'Sistema Padrão' }
         });
       }
@@ -1196,7 +1215,7 @@ app.get('/api/tipos-servico', autenticarToken, async (req, res) => {
       // Criar os tipos de serviço básicos
       const tiposServicoCriados = await Promise.all(
         tiposBasicos.map(tipo => 
-          prisma.tipoServico.create({
+          getPrisma().tipoServico.create({
             data: {
               ...tipo,
               empresaId: empresaPadrao.id
@@ -1261,7 +1280,7 @@ app.post('/api/tipos-servico', autenticarToken, validate(tipoServicoSchema), asy
 // Rotas para Prestadores
 app.get('/api/prestadores', autenticarToken, async (req, res) => {
   try {
-    const prestadores = await prisma.prestador.findMany({
+  const prestadores = await getPrisma().prestador.findMany({
       include: {
         usuario: {
           select: {
@@ -1299,7 +1318,7 @@ app.get('/api/orcamentos', autenticarToken, async (req, res) => {
     // Se for prestador, só pode ver seus próprios orçamentos
     if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
       // Buscar o prestador associado ao usuário
-      const prestador = await prisma.prestador.findFirst({
+  const prestador = await getPrisma().prestador.findFirst({
         where: { usuarioId: usuario.id }
       });
       
@@ -1314,7 +1333,7 @@ app.get('/api/orcamentos', autenticarToken, async (req, res) => {
       whereClause.prestadorId = prestadorId;
     }
     
-    const orcamentos = await prisma.orcamento.findMany({
+  const orcamentos = await getPrisma().orcamento.findMany({
       where: whereClause,
       include: {
         solicitacao: {
@@ -1372,7 +1391,7 @@ app.post('/api/orcamentos', autenticarToken, validate(orcamentoSchema), async (r
       observacoes
     } = req.body;
     
-    const orcamento = await prisma.orcamento.create({
+  const orcamento = await getPrisma().orcamento.create({
       data: {
         solicitacaoId,
         prestadorId,
@@ -1425,7 +1444,7 @@ app.put('/api/orcamentos/:id', autenticarToken, validate(orcamentoSchema), async
     const { id } = req.params;
     const updateData = req.body;
     
-    const orcamento = await prisma.orcamento.update({
+  const orcamento = await getPrisma().orcamento.update({
       where: { id },
       data: updateData,
       include: {
@@ -1449,7 +1468,7 @@ app.delete('/api/orcamentos/:id', autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    await prisma.orcamento.delete({
+  await getPrisma().orcamento.delete({
       where: { id }
     });
     
