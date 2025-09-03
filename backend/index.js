@@ -97,6 +97,26 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Endpoint de debug para verificar variáveis de ambiente (apenas em produção)
+app.get('/api/debug-env', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.status(403).json({ error: 'Debug endpoint only available in production' });
+  }
+  
+  const envVars = {
+    NODE_ENV: process.env.NODE_ENV,
+    VERCEL: process.env.VERCEL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT_SET',
+    JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT_SET',
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
+    SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT_SET',
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'NOT_SET'
+  };
+  
+  res.json({ envVars });
+});
+
 // Middleware para proteger rotas
 function autenticarToken(req, res, next) {
   const authHeader = req.headers['authorization'];
