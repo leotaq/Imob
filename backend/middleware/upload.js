@@ -2,9 +2,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
+const isVercel = !!process.env.VERCEL;
 
 // Criar diretório de uploads se não existir
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+const uploadsDir = isVercel ? '/tmp/uploads' : path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

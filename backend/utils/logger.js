@@ -3,11 +3,15 @@ const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 const fs = require('fs');
 
+const isVercel = !!process.env.VERCEL;
+
 // Criar diretório de logs se não existir
-const logDir = process.env.LOG_FILE_PATH || './logs';
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
-}
+const logDir = isVercel ? '/tmp/logs' : (process.env.LOG_FILE_PATH || './logs');
+try {
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+} catch {}
 
 // Configuração de formato personalizado
 const customFormat = winston.format.combine(
@@ -33,42 +37,37 @@ const customFormat = winston.format.combine(
 );
 
 // Configuração de transports
-const transports = [
-  // Console para desenvolvimento
-  new winston.transports.Console({
-    level: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
-    format: winston.format.combine(
-      winston.format.colorize(),
-      customFormat
-    )
-  }),
-  
-  // Arquivo para todos os logs
-  new DailyRotateFile({
-    filename: path.join(logDir, 'application-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    maxSize: process.env.LOG_MAX_SIZE || '20m',
-    maxFiles: process.env.LOG_MAX_FILES || '14d',
-    level: process.env.LOG_LEVEL || 'info',
-    format: winston.format.combine(
-      winston.format.json(),
-      winston.format.timestamp()
-    )
-  }),
-  
-  // Arquivo separado para erros
-  new DailyRotateFile({
-    filename: path.join(logDir, 'error-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    maxSize: process.env.LOG_MAX_SIZE || '20m',
-    maxFiles: process.env.LOG_MAX_FILES || '14d',
-    level: 'error',
-    format: winston.format.combine(
-      winston.format.json(),
-      winston.format.timestamp()
-    )
-  })
-];
+const transports = [];
+
+// Console sempre
+transports.push(new winston.transports.Console({
+  level: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
+  format: winston.format.combine(winston.format.colorize(), customFormat)
+}));
+
+// Em Vercel, evitar escrita em disco; fora da Vercel, registrar em arquivos
+if (!isVercel) {
+  transports.push(
+    new DailyRotateFile({
+      filename: path.join(logDir, 'application-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: process.env.LOG_MAX_SIZE || '20m',
+      maxFiles: process.env.LOG_MAX_FILES || '14d',
+      level: process.env.LOG_LEVEL || 'info',
+      format: winston.format.combine(winston.format.json(), winston.format.timestamp())
+    })
+  );
+  transports.push(
+    new DailyRotateFile({
+      filename: path.join(logDir, 'error-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: process.env.LOG_MAX_SIZE || '20m',
+      maxFiles: process.env.LOG_MAX_FILES || '14d',
+      level: 'error',
+      format: winston.format.combine(winston.format.json(), winston.format.timestamp())
+    })
+  );
+}
 
 // Criar logger
 const logger = winston.createLogger({
