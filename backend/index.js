@@ -1042,7 +1042,7 @@ app.get('/api/solicitacoes', autenticarToken, async (req, res) => {
     // Se for prestador, filtrar solicitações relevantes
     if (!usuario.isMaster && !usuario.isAdmin && !usuario.isGestor) {
       // Buscar o prestador associado ao usuário
-      const prestador = await prisma.prestador.findFirst({
+  const prestador = await getPrisma().prestador.findFirst({
         where: { usuarioId: usuario.id }
       });
       
@@ -1052,7 +1052,7 @@ app.get('/api/solicitacoes', autenticarToken, async (req, res) => {
       }
       
       // Buscar IDs de solicitações onde o prestador tem orçamentos
-      const orcamentos = await prisma.orcamento.findMany({
+  const orcamentos = await getPrisma().orcamento.findMany({
         where: { prestadorId: prestador.id },
         select: { solicitacaoId: true }
       });
