@@ -32,7 +32,16 @@ const FileManager = require('./utils/fileManager');
 const JWT_SECRET = process.env.JWT_SECRET || 'segredo_super_secreto';
 
 const app = express();
-const prisma = new PrismaClient();
+// Prisma client reuse for serverless (Vercel) to avoid exhausting connections
+const globalForPrisma = global;
+if (!globalForPrisma.prisma) {
+  // Prefer pooler URL on serverless if provided
+  if (process.env.POOLER_URL && !process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.POOLER_URL;
+  }
+  globalForPrisma.prisma = new PrismaClient();
+}
+const prisma = globalForPrisma.prisma;
 const fileManager = new FileManager(uploadsDir);
 
 // Configurações de segurança
@@ -94,7 +103,7 @@ app.get('/api/health', (req, res) => {
     message: 'API funcionando corretamente',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: '1.0.1' // Força redeploy
+  version: '1.0.2' // bump
   });
 });
 
@@ -109,6 +118,8 @@ app.get('/api/debug-env', (req, res) => {
     VERCEL: process.env.VERCEL,
     VERCEL_ENV: process.env.VERCEL_ENV,
     DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT_SET',
+    POOLER_URL: process.env.POOLER_URL ? 'SET' : 'NOT_SET',
+    DIRECT_URL: process.env.DIRECT_URL ? 'SET' : 'NOT_SET',
     JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT_SET',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
     SUPABASE_URL: process.env.SUPABASE_URL ? 'SET' : 'NOT_SET',
@@ -116,6 +127,17 @@ app.get('/api/debug-env', (req, res) => {
   };
   
   res.json({ envVars });
+});
+
+// DB health check to validate Prisma/Supabase connectivity from Vercel
+app.get('/api/db-health', async (req, res) => {
+  try {
+    const now = await prisma.$queryRaw`SELECT NOW()`;
+    res.json({ ok: true, now });
+  } catch (error) {
+    logger.logError('DB Health failed', error);
+    res.status(500).json({ ok: false, error: error.message, code: error.code });
+  }
 });
 
 // Middleware para proteger rotas

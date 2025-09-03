@@ -20,6 +20,7 @@ import Admin from "./pages/Admin";
 import SolicitacaoInquilino from "./pages/SolicitacaoInquilino";
 
 import ConfiguracaoPermissoes from "./pages/ConfiguracaoPermissoes";
+import Diagnostics from "./pages/Diagnostics";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,8 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          {/* Página pública para diagnóstico rápido em produção */}
+          <Route path="/diagnostics" element={<Diagnostics />} />
 
           <Route element={
             <ProtectedRoute>
