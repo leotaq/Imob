@@ -782,7 +782,9 @@ app.get('/api/execucao', autenticarToken, async (req, res) => {
 app.use(errorLogger);
 
 // Inicialização mínima (evitar bind de porta em Vercel)
-criarMaster();
+if (!isVercel) {
+  criarMaster();
+}
 
 if (!isVercel) {
   const PORT = process.env.PORT || 3001;
